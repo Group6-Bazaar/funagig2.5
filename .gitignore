@@ -22,6 +22,8 @@ php_errors.log
 
 # Node modules (if any)
 node_modules/
+dist/
+dist-ssr/
 
 # Environment files
 .env
