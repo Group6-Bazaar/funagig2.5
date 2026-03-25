@@ -130,16 +130,16 @@ const Home = () => {
                 
                 <form id="contact-form" style={{ marginTop: '20px' }} onSubmit={handleContactSubmit}>
                     <h3>Send Message</h3>
-                    <div className="field"><label>Name *</label><input required value={contactForm.name} onChange={e => setContactForm({...contactForm, name: e.target.value})} /></div>
-                    <div className="field"><label>Email *</label><input type="email" required value={contactForm.email} onChange={e => setContactForm({...contactForm, email: e.target.value})} /></div>
+                    <div className="field"><label>Name *</label><input className="input" required value={contactForm.name} onChange={e => setContactForm({...contactForm, name: e.target.value})} /></div>
+                    <div className="field"><label>Email *</label><input className="input" type="email" required value={contactForm.email} onChange={e => setContactForm({...contactForm, email: e.target.value})} /></div>
                     <div className="field">
                         <label>Subject *</label>
-                        <select required value={contactForm.subject} onChange={e => setContactForm({...contactForm, subject: e.target.value})}>
+                        <select className="select" required value={contactForm.subject} onChange={e => setContactForm({...contactForm, subject: e.target.value})}>
                             <option>General</option>
                             <option>Support</option>
                         </select>
                     </div>
-                    <div className="field"><label>Message *</label><textarea required value={contactForm.message} onChange={e => setContactForm({...contactForm, message: e.target.value})}></textarea></div>
+                    <div className="field"><label>Message *</label><textarea className="textarea" required value={contactForm.message} onChange={e => setContactForm({...contactForm, message: e.target.value})}></textarea></div>
                     <button type="submit" className="btn" disabled={isSubmitting}>{isSubmitting ? 'Sending...' : 'Send'}</button>
                 </form>
 

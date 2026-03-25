@@ -12,6 +12,9 @@ const ManageGigs = () => {
     const [filters, setFilters] = useState({ search: '', status: '', sort: 'newest' });
 
     const [editingGig, setEditingGig] = useState(null);
+    const [showEditModal, setShowEditModal] = useState(false);
+    const [editGigId, setEditGigId] = useState(null);
+    const [editForm, setEditForm] = useState({ title: '', description: '', type: 'one-time', status: 'active', skills: '', budget: '', deadline: '', location: '' });
     const { user } = useAuth();
     
     const loadGigs = async () => {
