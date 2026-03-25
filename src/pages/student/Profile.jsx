@@ -31,18 +31,29 @@ const Profile = () => {
             if (!user) return;
             setLoading(true);
             try {
-                // Initialize form from context
+            // Initialize form from context - prefer DB profile, fall back to auth metadata
+                const meta = user.user_metadata || {};
                 setProfileForm({
-                    name: user.name || '', email: user.email || '', phone: user.phone || '',
-                    university: user.university || '', major: user.major || '',
-                    year: user.year || 'Year 2', availability: user.availability || 'Part-Time',
-                    payment: user.payment || '', skills: user.skills || ''
+                    name: user.name || meta.name || '',
+                    email: user.email || '',
+                    phone: user.phone || '',
+                    university: user.university || '',
+                    major: user.major || '',
+                    year: user.year || 'Year 2',
+                    availability: user.availability || 'Part-Time',
+                    payment: user.payment || '',
+                    skills: user.skills || ''
                 });
 
                 // Fetch real profile from DB in case it diverged
-                const { data: dbUser } = await supabase.from('users').select('*').eq('id', user.id).single();
+                const { data: dbUser, error: dbErr } = await supabase.from('users').select('*').eq('id', user.id).single();
+                if (dbErr) {
+                    console.warn('Profile DB fetch failed (check RLS policies):', dbErr.message);
+                }
                 if (dbUser) {
                     setProfileForm(prev => ({ ...prev, ...dbUser }));
+                    // Sync fresh name back to context
+                    if (dbUser.name) setUser(u => ({ ...u, ...dbUser }));
                 }
 
                 // Fetch applications
@@ -96,9 +107,15 @@ const Profile = () => {
                 toast.success('Profile updated successfully!');
                 setUser({ ...user, ...profileForm });
             } else {
-                toast.error('Failed to update profile');
+                console.error('Profile update error:', error);
+                if (error.code === '42501' || error.message?.includes('policy')) {
+                    toast.error('Update blocked by database policy. Please add an UPDATE policy on the users table in your Supabase dashboard.');
+                } else {
+                    toast.error('Failed to update: ' + error.message);
+                }
             }
         } catch (error) {
+            console.error('Profile update exception:', error);
             toast.error('An error occurred while updating profile.');
         } finally {
             setIsSaving(false);
