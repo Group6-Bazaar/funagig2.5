@@ -6,6 +6,14 @@ const AuthContext = createContext();
 
 export const useAuth = () => useContext(AuthContext);
 
+// Wraps a promise with a timeout to prevent infinite hangs
+const withTimeout = (promise, ms = 8000) => {
+    const timeout = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Request timed out. Please check your connection.')), ms)
+    );
+    return Promise.race([promise, timeout]);
+};
+
 export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -13,19 +21,25 @@ export const AuthProvider = ({ children }) => {
     const enrichUserWithProfile = async (authUser) => {
         if (!authUser) return null;
         try {
-            const { data: profile, error } = await supabase
+            const profileFetch = supabase
                 .from('users')
                 .select('*')
                 .eq('id', authUser.id)
                 .single();
+
+            const { data: profile, error } = await withTimeout(profileFetch, 5000);
             
             if (error) {
-                console.error("Profile fetch error:", error);
-                return { ...authUser, role: authUser.user_metadata?.role };
+                console.error('Profile fetch error:', error);
+                // Fallback to auth metadata
+                const role = authUser.user_metadata?.role;
+                return { ...authUser, role, type: role };
             }
             return { ...authUser, ...profile, role: profile.type };
         } catch (err) {
-            return authUser;
+            console.error('Profile fetch failed (timeout or error):', err);
+            const role = authUser.user_metadata?.role;
+            return { ...authUser, role, type: role };
         }
     };
 
@@ -79,10 +93,9 @@ export const AuthProvider = ({ children }) => {
     }, []);
 
     const login = async (email, password) => {
-        const { data, error } = await supabase.auth.signInWithPassword({
-            email,
-            password
-        });
+        const { data, error } = await withTimeout(
+            supabase.auth.signInWithPassword({ email, password })
+        );
         
         if (error) throw new Error(error.message);
         
