@@ -121,6 +121,12 @@ const Profile = () => {
         const file = e.target.files[0];
         if (!file) return;
 
+        if (file.size > 15 * 1024 * 1024) {
+            toast.error('File size must be less than 15MB');
+            e.target.value = '';
+            return;
+        }
+
         try {
             const fileExt = file.name.split('.').pop();
             const fileName = `${user.id}-${Math.random()}.${fileExt}`;
@@ -146,7 +152,40 @@ const Profile = () => {
             setUser({ ...user, profile_image: publicUrl });
             toast.success('Profile photo updated.');
         } catch (error) {
-            toast.error('Error uploading photo. Ensure the avatars bucket exists.');
+            console.error('Upload Error:', error);
+            toast.error('Error uploading photo. Ensure the avatars bucket exists and allows uploads.');
+        }
+    };
+
+    const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+
+    const handlePhotoUploadWrap = async (e) => {
+        setIsUploadingPhoto(true);
+        try {
+            await handlePhotoUpload(e);
+        } finally {
+            setIsUploadingPhoto(false);
+            e.target.value = '';
+        }
+    };
+
+    const handleRemovePhoto = async () => {
+        setIsUploadingPhoto(true);
+        try {
+            const { error: updateError } = await supabase
+                .from('users')
+                .update({ profile_image: null })
+                .eq('id', user.id);
+
+            if (updateError) throw updateError;
+
+            setUser({ ...user, profile_image: null });
+            toast.success('Photo removed successfully!');
+        } catch (error) {
+            console.error('Remove Error:', error);
+            toast.error('Failed to remove photo.');
+        } finally {
+            setIsUploadingPhoto(false);
         }
     };
 
@@ -176,8 +215,15 @@ const Profile = () => {
                             ) : initials}
                         </div>
                         <div>
-                            <input type="file" id="photo-upload" style={{ display: 'none' }} onChange={handlePhotoUpload} accept="image/*" />
-                            <button className="btn secondary" style={{ marginTop: '8px' }} onClick={() => document.getElementById('photo-upload').click()}>Change Photo</button>
+                            <label className="btn secondary" style={{ cursor: 'pointer', display: 'inline-block' }}>
+                                {isUploadingPhoto ? 'Uploading...' : 'Change Photo'}
+                                <input type="file" accept="image/*" style={{ display: 'none' }} disabled={isUploadingPhoto} onChange={handlePhotoUploadWrap} />
+                            </label>
+                            {user?.profile_image && (
+                                <button type="button" className="btn ghost" disabled={isUploadingPhoto} onClick={handleRemovePhoto} style={{ marginLeft: '10px' }}>
+                                    Remove
+                                </button>
+                            )}
                         </div>
                         <div style={{ marginLeft: '16px' }}>
                             <h2 style={{ margin: 0, fontSize: '24px' }}>{user?.name || 'Business Name'}</h2>

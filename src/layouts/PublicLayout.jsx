@@ -1,5 +1,6 @@
 import React from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
+import ThemeToggle from '../components/ThemeToggle';
 
 const PublicLayout = () => {
     const location = useLocation();
@@ -12,6 +13,7 @@ const PublicLayout = () => {
                     <div className="logo"></div> FunaGig
                 </div>
                 <nav className="nav-actions">
+                    <ThemeToggle />
                     {isAuthPage ? (
                         <Link className="btn ghost" to="/">Back to Home</Link>
                     ) : (

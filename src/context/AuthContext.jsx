@@ -52,6 +52,17 @@ export const AuthProvider = ({ children }) => {
     useEffect(() => {
         checkSession();
 
+        // Safety timeout: if loading is still true after 5s, force it false to avoid blank page
+        const safetyTimer = setTimeout(() => {
+            setLoading(prev => {
+                if (prev) {
+                    console.warn('Auth session check timed out – forcing render.');
+                    return false;
+                }
+                return prev;
+            });
+        }, 5000);
+
         const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
             if (event === 'SIGNED_IN') {
                 const fullUser = await enrichUserWithProfile(session?.user);
@@ -61,7 +72,10 @@ export const AuthProvider = ({ children }) => {
             }
         });
 
-        return () => subscription.unsubscribe();
+        return () => {
+            clearTimeout(safetyTimer);
+            subscription.unsubscribe();
+        };
     }, []);
 
     const login = async (email, password) => {
@@ -139,7 +153,12 @@ export const AuthProvider = ({ children }) => {
 
     return (
         <AuthContext.Provider value={value}>
-            {!loading && children}
+            {loading ? (
+                <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)' }}>
+                    <div style={{ width: '40px', height: '40px', border: '3px solid var(--primary-light)', borderTopColor: 'var(--primary)', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+                    <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+                </div>
+            ) : children}
         </AuthContext.Provider>
     );
 };

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../utils/supabase';
+import ThemeToggle from '../components/ThemeToggle';
 
 const BusinessLayout = () => {
     const { user, logout } = useAuth();
@@ -46,7 +47,8 @@ const BusinessLayout = () => {
                 <div className="brand">
                     <div className="logo"></div> FunaGig
                 </div>
-                <div className="navbar-actions">
+                <div className="navbar-actions" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <ThemeToggle />
                     <div className="notification-badge-container" style={{ display: unreadCount > 0 ? 'block' : 'none' }}>
                         <span className="notification-badge">{unreadCount > 99 ? '99+' : unreadCount}</span>
                     </div>
