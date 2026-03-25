@@ -97,21 +97,39 @@ const Profile = () => {
         e.preventDefault();
         setIsSaving(true);
         try {
+            // Only send columns that exist in a typical users table
+            // Add more here once the DB migration is run
+            const allowedColumns = ['name', 'phone', 'university', 'major', 'year', 'availability', 'payment', 'skills'];
+            
+            // Build update payload, then do a dry run to detect column errors
+            const payload = {};
+            allowedColumns.forEach(col => {
+                if (profileForm[col] !== undefined) payload[col] = profileForm[col];
+            });
+
             const { error } = await supabase
                 .from('users')
-                .update(profileForm)
+                .update(payload)
                 .eq('id', user.id);
 
             if (!error) {
                 toast.success('Profile updated successfully!');
-                setUser({ ...user, ...profileForm });
+                setUser({ ...user, ...payload });
+            } else if (error.message?.includes('column')) {
+                // A column doesn't exist - try updating only core columns
+                console.warn('Some columns missing in DB, retrying with core fields:', error.message);
+                const corePayload = { name: profileForm.name, phone: profileForm.phone || null };
+                const { error: coreErr } = await supabase
+                    .from('users').update(corePayload).eq('id', user.id);
+                if (!coreErr) {
+                    toast.success('Basic profile saved! Run the DB migration to save all fields.');
+                    setUser({ ...user, ...corePayload });
+                } else {
+                    toast.error('Update failed: ' + coreErr.message);
+                }
             } else {
                 console.error('Profile update error:', error);
-                if (error.code === '42501' || error.message?.includes('policy')) {
-                    toast.error('Update blocked by database policy. Please add an UPDATE policy on the users table in your Supabase dashboard.');
-                } else {
-                    toast.error('Failed to update: ' + error.message);
-                }
+                toast.error('Failed to update: ' + error.message);
             }
         } catch (error) {
             console.error('Profile update exception:', error);
