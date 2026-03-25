@@ -1,7 +1,10 @@
 import React from 'react';
-import { Outlet, Link } from 'react-router-dom';
+import { Outlet, Link, useLocation } from 'react-router-dom';
 
 const PublicLayout = () => {
+    const location = useLocation();
+    const isAuthPage = ['/login', '/signup', '/forgot-password', '/reset-password'].includes(location.pathname);
+
     return (
         <>
             <header className="navbar">
@@ -9,7 +12,11 @@ const PublicLayout = () => {
                     <div className="logo"></div> FunaGig
                 </div>
                 <nav className="nav-actions">
-                    <Link className="btn" to="/login">Get Started</Link>
+                    {isAuthPage ? (
+                        <Link className="btn ghost" to="/">Back to Home</Link>
+                    ) : (
+                        <Link className="btn" to="/login">Get Started</Link>
+                    )}
                 </nav>
             </header>
 
