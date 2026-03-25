@@ -52,8 +52,7 @@ const Profile = () => {
                 }
                 if (dbUser) {
                     setProfileForm(prev => ({ ...prev, ...dbUser }));
-                    // Sync fresh name back to context
-                    if (dbUser.name) setUser(u => ({ ...u, ...dbUser }));
+                    // DON'T call setUser here — it causes an infinite re-render loop
                 }
 
                 // Fetch applications
@@ -92,7 +91,7 @@ const Profile = () => {
         };
 
         fetchProfileData();
-    }, [user]);
+    }, [user?.id]); // Only re-run when the user's ID changes, not every user state update
 
     const handleProfileUpdate = async (e) => {
         e.preventDefault();
