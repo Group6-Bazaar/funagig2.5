@@ -233,3 +233,124 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .brand {
     transform: translateY(-4px);
     box-shadow: var(--shadow-lg) !important;
 }
+
+/* ============================================
+   DARK MODE GLOBAL OVERRIDES
+   Forces all legacy hardcoded colors to adapt
+   ============================================ */
+:root.dark body,
+:root.dark .content,
+:root.dark .container {
+    color: var(--text) !important;
+    background: var(--bg) !important;
+}
+
+/* All text elements */
+:root.dark h1, :root.dark h2, :root.dark h3, :root.dark h4,
+:root.dark h5, :root.dark h6, :root.dark p,
+:root.dark span:not(.pill):not(.notification-badge),
+:root.dark label, :root.dark td, :root.dark th,
+:root.dark .label, :root.dark .subtle,
+:root.dark .title, :root.dark .h1, :root.dark .h2 {
+    color: var(--text) !important;
+}
+
+/* Sections, cards, panels */
+:root.dark .section,
+:root.dark .card,
+:root.dark .card-lg,
+:root.dark .stat-card,
+:root.dark .modal-content {
+    background: var(--panel-solid) !important;
+    border-color: var(--border) !important;
+    color: var(--text) !important;
+}
+
+/* Sidebar & navigation */
+:root.dark .sidebar,
+:root.dark .navlist {
+    background: var(--panel) !important;
+    border-color: var(--border) !important;
+}
+:root.dark .navitem {
+    color: var(--text) !important;
+}
+:root.dark .navitem:not(.active):hover {
+    background: rgba(79, 70, 229, 0.15) !important;
+    color: #a5b4fc !important;
+}
+:root.dark .navitem.active {
+    color: white !important;
+}
+
+/* Inputs, textareas, selects */
+:root.dark .input,
+:root.dark .textarea,
+:root.dark .select,
+:root.dark input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+:root.dark textarea,
+:root.dark select {
+    background: #1a1a1a !important;
+    color: var(--text) !important;
+    border-color: var(--border) !important;
+}
+:root.dark .input::placeholder,
+:root.dark .textarea::placeholder,
+:root.dark input::placeholder,
+:root.dark textarea::placeholder {
+    color: var(--muted) !important;
+}
+
+/* Tables */
+:root.dark .table,
+:root.dark table {
+    background: var(--panel-solid) !important;
+    color: var(--text) !important;
+}
+:root.dark .table th,
+:root.dark table th {
+    background: #1a1a1a !important;
+    color: var(--muted) !important;
+    border-color: var(--border) !important;
+}
+:root.dark .table td,
+:root.dark table td {
+    border-color: var(--border) !important;
+    color: var(--text) !important;
+}
+:root.dark .table tr:hover td,
+:root.dark table tr:hover td {
+    background: rgba(255,255,255,0.03) !important;
+}
+
+/* Modals & Overlays */
+:root.dark .modal-header,
+:root.dark .modal-body,
+:root.dark .modal-footer {
+    background: var(--panel-solid) !important;
+    border-color: var(--border) !important;
+    color: var(--text) !important;
+}
+
+/* Ghost / secondary buttons */
+:root.dark .btn.ghost {
+    color: var(--text) !important;
+    border-color: var(--border) !important;
+    background: transparent !important;
+    box-shadow: none !important;
+}
+:root.dark .btn.ghost:hover {
+    background: rgba(255,255,255,0.08) !important;
+}
+
+/* Pill status badges – keep colored but update tones for dark */
+:root.dark .pill.green { background: #052e16 !important; color: #4ade80 !important; border-color: #166534 !important; }
+:root.dark .pill.yellow { background: #1c1200 !important; color: #fbbf24 !important; border-color: #854d0e !important; }
+:root.dark .pill.red { background: #2d0000 !important; color: #f87171 !important; border-color: #991b1b !important; }
+:root.dark .pill.gray { background: #1a1a1a !important; color: #94a3b8 !important; border-color: #334155 !important; }
+
+/* Footer */
+:root.dark .footer {
+    color: var(--muted) !important;
+    border-color: var(--border) !important;
+}
