@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import api from '../../utils/api';
+import { supabase } from '../../utils/supabase';
 import toast from '../../utils/toast';
 
 const Profile = () => {
@@ -34,23 +34,58 @@ const Profile = () => {
     }, [user]);
 
     const loadData = async () => {
+        if (!user) return;
         setLoading(true);
         try {
-            const statsRes = await api.get('/dashboard/stats');
-            if (statsRes.success) {
-                setStats({
-                    active_gigs: statsRes.stats.active_gigs || 0,
-                    total_applicants: statsRes.stats.total_applications || 0,
-                    hired_students: statsRes.stats.accepted_applications || 0,
-                    avg_rating: statsRes.stats.average_rating || 0
-                });
+            // Fetch stats from Supabase
+            const { count: activeGigsCount } = await supabase
+                .from('gigs')
+                .select('*', { count: 'exact', head: true })
+                .eq('user_id', user.id)
+                .neq('status', 'draft');
+
+            // Quick hack to get application counts
+            // In a real app we'd do a join via `gigs`, but this is sufficient for now
+            const { data: gigsData } = await supabase.from('gigs').select('id').eq('user_id', user.id);
+            let totalApps = 0;
+            let totalHired = 0;
+
+            if (gigsData && gigsData.length > 0) {
+                const gigIds = gigsData.map(g => g.id);
+                const { count: appsCount } = await supabase
+                    .from('applications')
+                    .select('*', { count: 'exact', head: true })
+                    .in('gig_id', gigIds);
+                totalApps = appsCount || 0;
+
+                const { count: hiredCount } = await supabase
+                    .from('applications')
+                    .select('*', { count: 'exact', head: true })
+                    .in('gig_id', gigIds)
+                    .eq('status', 'accepted');
+                totalHired = hiredCount || 0;
             }
 
-            if (user?.id) {
-                const reviewsRes = await api.get(`/reviews/${user.id}`).catch(() => ({ success: false }));
-                if (reviewsRes.success) {
-                    setReviews(reviewsRes.reviews || []);
-                    setRatingStats(reviewsRes.rating_stats || { total_reviews: 0, average_rating: 0 });
+            setStats({
+                active_gigs: activeGigsCount || 0,
+                total_applicants: totalApps,
+                hired_students: totalHired,
+                avg_rating: 0
+            });
+
+            const { data: reviewsData } = await supabase
+                .from('reviews')
+                .select('*')
+                .eq('reviewee_id', user.id);
+
+            if (reviewsData) {
+                setReviews(reviewsData);
+                if (reviewsData.length > 0) {
+                    const total = reviewsData.reduce((acc, r) => acc + r.rating, 0);
+                    const avg = total / reviewsData.length;
+                    
+                    setRatingStats({ total_reviews: reviewsData.length, average_rating: avg });
+                    setStats(prev => ({ ...prev, avg_rating: avg }));
                 }
             }
         } catch (error) {
@@ -65,13 +100,17 @@ const Profile = () => {
     const handleSaveProfile = async (e) => {
         e.preventDefault();
         try {
-            const res = await api.post('/profile', editForm);
-            if (res.success) {
+            const { error: updateError } = await supabase
+                .from('users')
+                .update(editForm)
+                .eq('id', user.id);
+
+            if (!updateError) {
                 toast.success('Profile updated successfully');
                 setUser({ ...user, ...editForm });
                 setShowEditModal(false);
             } else {
-                toast.error(res.error || 'Failed to update profile');
+                toast.error(updateError.message || 'Failed to update profile');
             }
         } catch {
             toast.error('Error updating profile');
@@ -82,24 +121,32 @@ const Profile = () => {
         const file = e.target.files[0];
         if (!file) return;
 
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('type', 'profile');
-
         try {
-            const res = await api.post('/upload', formData, {
-                headers: { 'Content-Type': 'multipart/form-data' }
-            });
+            const fileExt = file.name.split('.').pop();
+            const fileName = `${user.id}-${Math.random()}.${fileExt}`;
+            const filePath = `profile-pictures/${fileName}`;
 
-            if (res.success && (res.file_url || res.file_path)) {
-                const newUrl = res.file_url || res.file_path;
-                auth.setUser({ ...user, profile_image: newUrl });
-                toast.success('Profile photo updated.');
-            } else {
-                toast.error('Failed to upload photo.');
-            }
-        } catch {
-            toast.error('Error uploading photo.');
+            const { error: uploadError } = await supabase.storage
+                .from('avatars')
+                .upload(filePath, file);
+
+            if (uploadError) throw uploadError;
+
+            const { data: { publicUrl } } = supabase.storage
+                .from('avatars')
+                .getPublicUrl(filePath);
+
+            const { error: updateError } = await supabase
+                .from('users')
+                .update({ profile_image: publicUrl })
+                .eq('id', user.id);
+
+            if (updateError) throw updateError;
+
+            setUser({ ...user, profile_image: publicUrl });
+            toast.success('Profile photo updated.');
+        } catch (error) {
+            toast.error('Error uploading photo. Ensure the avatars bucket exists.');
         }
     };
 

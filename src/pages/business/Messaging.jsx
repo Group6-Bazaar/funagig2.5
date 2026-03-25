@@ -1,12 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { useWebSocket } from '../../context/WebSocketContext';
-import api from '../../utils/api';
+import { supabase } from '../../utils/supabase';
 import toast from '../../utils/toast';
 
 const Messaging = () => {
     const { user } = useAuth();
-    const { socket, isConnected } = useWebSocket();
     const [conversations, setConversations] = useState([]);
     const [activeConversation, setActiveConversation] = useState(null);
     const [messages, setMessages] = useState([]);
@@ -21,73 +19,100 @@ const Messaging = () => {
     const messagesEndRef = useRef(null);
     const fileInputRef = useRef(null);
 
+    const loadConversations = async () => {
+        if (!user) return;
+        try {
+            const { data, error } = await supabase
+                .from('conversation_details')
+                .select('*')
+                .or(`user1_id.eq.${user.id},user2_id.eq.${user.id}`)
+                .order('updated_at', { ascending: false });
+
+            if (data) {
+                const formatted = data.map(conv => {
+                    const isUser1 = conv.user1_id === user.id;
+                    return {
+                        id: conv.id,
+                        other_user_id: isUser1 ? conv.user2_id : conv.user1_id,
+                        other_user_name: isUser1 ? conv.user2_name : conv.user1_name,
+                        last_message: conv.last_message_content,
+                        last_message_time: conv.updated_at,   
+                        unread_count: 0
+                    };
+                });
+                setConversations(formatted);
+            }
+        } catch (error) {
+            console.error('Failed to load conversations', error);
+        }
+    };
+
     useEffect(() => {
         loadConversations();
-        const pollInterval = setInterval(loadConversations, 10000);
-        return () => clearInterval(pollInterval);
-    }, []);
+    }, [user]);
 
     useEffect(() => {
-        if (socket) {
-            socket.on('message_received', handleNewMessage);
-            socket.on('user_typing', handleUserTyping);
-            
-            return () => {
-                socket.off('message_received', handleNewMessage);
-                socket.off('user_typing', handleUserTyping);
-            };
-        }
-    }, [socket, activeConversation]);
+        if (!activeConversation) return;
 
-    const handleNewMessage = (data) => {
-        if (activeConversation && data.conversationId === activeConversation.id) {
-            loadMessages(activeConversation.id);
-        } else {
-            loadConversations();
-            toast.info('New message received');
-        }
-    };
+        const loadMessages = async () => {
+            const { data, error } = await supabase
+                .from('messages')
+                .select('*, sender:users!messages_sender_id_fkey(name)')
+                .eq('conversation_id', activeConversation.id)
+                .order('created_at', { ascending: true });
 
-    const handleUserTyping = (data) => {
-        if (activeConversation && data.conversationId === activeConversation.id && data.userId !== user.id) {
-            setTypingUsers(prev => ({ ...prev, [data.userId]: data.isTyping ? data.userName : null }));
-            if (!data.isTyping) {
-                setTypingUsers(prev => {
-                    const newDict = { ...prev };
-                    delete newDict[data.userId];
-                    return newDict;
-                });
-            }
-        }
-    };
-
-    const loadConversations = async () => {
-        try {
-            const res = await api.get('/conversations', { silent: true, retry: false });
-            if (res.success) {
-                setConversations(res.conversations || []);
-            }
-        } catch (error) {
-            console.error(error);
-        }
-    };
-
-    const loadMessages = async (conversationId) => {
-        try {
-            const res = await api.get(`/messages/${conversationId}`, { silent: true, retry: false });
-            if (res.success) {
-                setMessages(res.messages || []);
+            if (data) {
+                const formattedMsgs = data.map(m => ({
+                    ...m,
+                    sender_name: m.sender?.name || 'Unknown'
+                }));
+                setMessages(formattedMsgs);
                 scrollToBottom();
             }
-        } catch (error) {
-            console.error(error);
-        }
-    };
+        };
+
+        loadMessages();
+
+        // Realtime Subscription
+        const messageSubscription = supabase
+            .channel(`public:messages:conversation_id=eq.${activeConversation.id}`)
+            .on('postgres_changes', { 
+                event: 'INSERT', 
+                schema: 'public', 
+                table: 'messages',
+                filter: `conversation_id=eq.${activeConversation.id}` 
+            }, async (payload) => {
+                const newMsg = payload.new;
+                const { data: senderData } = await supabase.from('users').select('name').eq('id', newMsg.sender_id).single();
+                newMsg.sender_name = senderData?.name || 'Unknown';
+                
+                setMessages(prev => [...prev, newMsg]);
+                if (newMsg.sender_id !== user.id) {
+                    supabase.from('messages').update({ is_read: true }).eq('id', newMsg.id).then();
+                }
+                scrollToBottom();
+                loadConversations();
+            })
+            .subscribe();
+
+        // Typing channel broadcasting
+        const typingChannel = supabase.channel(`typing:${activeConversation.id}`);
+        typingChannel
+            .on('broadcast', { event: 'typing' }, payload => {
+                if (payload.userId !== user.id) {
+                    setTypingUsers(prev => ({ ...prev, [payload.userId]: payload.isTyping ? payload.userName : null }));
+                }
+            })
+            .subscribe();
+
+        return () => {
+            messageSubscription.unsubscribe();
+            typingChannel.unsubscribe();
+        };
+    }, [activeConversation, user]);
 
     const selectConversation = (conv) => {
         setActiveConversation(conv);
-        loadMessages(conv.id);
-        // Clean unread count locally
         setConversations(prev => prev.map(c => c.id === conv.id ? { ...c, unread_count: 0 } : c));
     };
 
@@ -99,12 +124,13 @@ const Messaging = () => {
 
     const handleTyping = (e) => {
         setMessageInput(e.target.value);
-        if (socket && isConnected && activeConversation) {
-            socket.emit('typing', { conversationId: activeConversation.id, isTyping: true, userName: user.name });
+        if (activeConversation) {
+            const typingChannel = supabase.channel(`typing:${activeConversation.id}`);
+            typingChannel.send({ type: 'broadcast', event: 'typing', payload: { userId: user.id, isTyping: true, userName: user.name }});
             
             if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
             typingTimeoutRef.current = setTimeout(() => {
-                socket.emit('typing', { conversationId: activeConversation.id, isTyping: false, userName: user.name });
+                typingChannel.send({ type: 'broadcast', event: 'typing', payload: { userId: user.id, isTyping: false, userName: user.name }});
             }, 3000);
         }
     };
@@ -115,51 +141,52 @@ const Messaging = () => {
 
         setSending(true);
         try {
-            // First upload file if exists
             let attachmentContent = null;
             if (fileAttachment) {
-                const formData = new FormData();
-                formData.append('file', fileAttachment);
-                formData.append('type', 'message');
-                const uploadRes = await api.post('/upload', formData, {
-                    headers: { 'Content-Type': 'multipart/form-data' }
-                });
-                if (uploadRes.success) {
-                    attachmentContent = JSON.stringify([{
-                        file_name: fileAttachment.name,
-                        file_url: uploadRes.file_url || uploadRes.file_path,
-                        file_type: fileAttachment.type || fileAttachment.name.split('.').pop()
-                    }]);
-                } else {
-                    throw new Error('Upload failed');
-                }
+                const fileExt = fileAttachment.name.split('.').pop();
+                const fileName = `${user.id}-${Math.random()}.${fileExt}`;
+                const filePath = `chat-attachments/${fileName}`;
+
+                const { error: uploadError } = await supabase.storage
+                    .from('attachments')
+                    .upload(filePath, fileAttachment);
+
+                if (uploadError) throw uploadError;
+
+                const { data: { publicUrl } } = supabase.storage
+                    .from('attachments')
+                    .getPublicUrl(filePath);
+
+                attachmentContent = JSON.stringify([{
+                    file_name: fileAttachment.name,
+                    file_url: publicUrl,
+                    file_type: fileAttachment.type || fileAttachment.name.split('.').pop()
+                }]);
             }
 
-            const receiverId = activeConversation.other_user_id || 
-                (activeConversation.user1_id === user.id ? activeConversation.user2_id : activeConversation.user1_id);
+            const receiverId = activeConversation.other_user_id;
 
-            const res = await api.post('/messages', {
+            const { error: sendError } = await supabase.from('messages').insert([{
                 conversation_id: activeConversation.id,
+                sender_id: user.id,
                 receiver_id: receiverId,
                 content: messageInput,
                 attachments: attachmentContent
-            });
+            }]);
 
-            if (res.success) {
-                setMessageInput('');
-                setFileAttachment(null);
-                if (fileInputRef.current) fileInputRef.current.value = '';
-                
-                // Clear typing
-                if (socket && isConnected) {
-                    socket.emit('typing', { conversationId: activeConversation.id, isTyping: false, userName: user.name });
-                }
-                
-                loadMessages(activeConversation.id);
-                loadConversations();
-            } else {
-                toast.error('Failed to send message');
-            }
+            if (sendError) throw sendError;
+
+            await supabase.from('conversations').update({ updated_at: new Date().toISOString() }).eq('id', activeConversation.id);
+
+            setMessageInput('');
+            setFileAttachment(null);
+            if (fileInputRef.current) fileInputRef.current.value = '';
+            
+            const typingChannel = supabase.channel(`typing:${activeConversation.id}`);
+            typingChannel.send({ type: 'broadcast', event: 'typing', payload: { userId: user.id, isTyping: false, userName: user.name }});
+            
+            scrollToBottom();
+            
         } catch (err) {
             toast.error('Error sending message');
         } finally {

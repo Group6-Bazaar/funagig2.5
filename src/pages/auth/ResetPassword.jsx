@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import api from '../../utils/api';
+import { supabase } from '../../utils/supabase';
 import toast from '../../utils/toast';
 
 const ResetPassword = () => {
@@ -22,10 +22,8 @@ const ResetPassword = () => {
     const handleSubmit = async (e) => {
         e.preventDefault();
         
-        if (!token) {
-            toast.error('Reset token is required');
-            return;
-        }
+        // Supabase handles token automatically through hash fragment
+        // We just need to check if user has a session ready (which they will if they clicked the email link)
         if (password.length < 6) {
             toast.error('Password must be at least 6 characters');
             return;
@@ -37,17 +35,15 @@ const ResetPassword = () => {
 
         try {
             setIsSubmitting(true);
-            const response = await api.post('/auth/reset-password', {
-                token,
-                password,
-                confirmPassword
+            const { error } = await supabase.auth.updateUser({
+                password: password
             });
             
-            if (response.success) {
-                toast.success(response.message || 'Password reset successfully!');
+            if (!error) {
+                toast.success('Password updated successfully!');
                 setTimeout(() => navigate('/login'), 2000);
             } else {
-                toast.error(response.error || 'Failed to reset password');
+                toast.error(error.message || 'Failed to update password');
             }
         } catch (error) {
             toast.error(error.message || 'Error communicating with server');
@@ -62,19 +58,7 @@ const ResetPassword = () => {
                 <h1 className="h1" style={{ fontSize: '32px', textAlign: 'center' }}>Reset Password</h1>
                 <p className="subtle mb-10" style={{ textAlign: 'center' }}>Enter your new password below</p>
                 
-                {!urlToken && (
-                    <div className="field">
-                        <label className="label">Reset Token *</label>
-                        <input 
-                            type="text" 
-                            className="input" 
-                            placeholder="Enter reset token" 
-                            required 
-                            value={token}
-                            onChange={(e) => setToken(e.target.value)}
-                        />
-                    </div>
-                )}
+                {/* Token input removed, Supabase handles it in hash */}
                 
                 <div className="field">
                     <label className="label">New Password *</label>

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import api from '../utils/api';
+import { supabase } from '../utils/supabase';
 
 const StudentLayout = () => {
     const { user, logout } = useAuth();
@@ -9,11 +9,17 @@ const StudentLayout = () => {
     const [unreadCount, setUnreadCount] = useState(0);
 
     useEffect(() => {
+        if (!user) return;
         const fetchNotifications = async () => {
             try {
-                const response = await api.get('/notifications');
-                if (response.success) {
-                    setUnreadCount(response.unread_count || 0);
+                const { count, error } = await supabase
+                    .from('messages')
+                    .select('*', { count: 'exact', head: true })
+                    .eq('receiver_id', user.id)
+                    .eq('is_read', false);
+                
+                if (!error) {
+                    setUnreadCount(count || 0);
                 }
             } catch (error) {
                 // Ignore silent errors
@@ -22,7 +28,7 @@ const StudentLayout = () => {
         fetchNotifications();
         const interval = setInterval(fetchNotifications, 30000);
         return () => clearInterval(interval);
-    }, []);
+    }, [user]);
 
     const handleLogout = async (e) => {
         e.preventDefault();

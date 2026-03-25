@@ -1,15 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import api from '../../utils/api';
+import { supabase } from '../../utils/supabase';
 import toast from '../../utils/toast';
 
 const Dashboard = () => {
     const { user } = useAuth();
     
     const [stats, setStats] = useState({
-        activeTasks: '-', pendingTasks: '-', completedTasks: '-', averageRating: '-',
-        totalEarned: '-', totalTasks: '-', daysActive: '-'
+        activeTasks: 0, pendingTasks: 0, completedTasks: 0, averageRating: user?.rating || 0,
+        totalEarned: 0, totalTasks: 0, daysActive: '-'
     });
     const [applications, setApplications] = useState([]);
     const [activities, setActivities] = useState([]);
@@ -19,22 +19,67 @@ const Dashboard = () => {
 
     useEffect(() => {
         const fetchDashboardData = async () => {
+            if (!user) return;
             try {
-                // We mock the concurrent fetch structure as it existed in vanilla JS
-                const [dashRes, notifRes] = await Promise.all([
-                    api.get('/dashboard').catch(() => ({ success: false })),
-                    api.get('/notifications').catch(() => ({ success: false }))
-                ]);
+                // Fetch applications details using the view
+                const { data: apps } = await supabase
+                    .from('application_details')
+                    .select('*')
+                    .eq('user_id', user.id)
+                    .order('applied_at', { ascending: false })
+                    .limit(5);
 
-                if (dashRes.success && dashRes.stats) {
-                    setStats(dashRes.stats);
-                    setApplications(dashRes.applications || []);
-                    setActivities(dashRes.activities || []);
+                if (apps) setApplications(apps);
+
+                // Fetch notifications
+                const { data: notifs } = await supabase
+                    .from('notifications')
+                    .select('*')
+                    .eq('user_id', user.id)
+                    .order('created_at', { ascending: false })
+                    .limit(5);
+
+                if (notifs) setNotifications(notifs);
+
+                // Fetch stats from applications
+                const { data: allApps } = await supabase
+                    .from('application_details')
+                    .select('status, budget');
+
+                if (allApps) {
+                    let active = 0, pending = 0, completed = 0, earned = 0;
+                    allApps.forEach(app => {
+                        if (app.status === 'accepted') active++;
+                        if (app.status === 'pending') pending++;
+                        if (app.status === 'completed') {
+                            completed++;
+                            earned += parseFloat(app.budget || 0);
+                        }
+                    });
+                    setStats(prev => ({
+                        ...prev,
+                        activeTasks: active,
+                        pendingTasks: pending,
+                        completedTasks: completed,
+                        totalTasks: allApps.length,
+                        totalEarned: `sh.${earned.toLocaleString()}`,
+                        averageRating: user?.rating || 0
+                    }));
                 }
 
-                if (notifRes.success && notifRes.notifications) {
-                    setNotifications(notifRes.notifications);
+                // Compute days active
+                const createdDate = new Date(user?.created_at || Date.now());
+                const days = Math.max(1, Math.floor((new Date() - createdDate) / (1000 * 60 * 60 * 24)));
+                setStats(prev => ({ ...prev, daysActive: days }));
+
+                // Mock recent activity based on apps
+                if (apps) {
+                    setActivities(apps.map(app => ({
+                        description: `Applied to ${app.gig_title}`,
+                        created_at: app.applied_at
+                    })));
                 }
+
             } catch (error) {
                 console.error('Failed to load dashboard data:', error);
             } finally {
@@ -44,11 +89,16 @@ const Dashboard = () => {
         };
 
         fetchDashboardData();
-    }, []);
+    }, [user]);
 
     const markAllRead = async () => {
         try {
-            await api.post('/notifications/mark-read');
+            await supabase
+                .from('notifications')
+                .update({ is_read: true })
+                .eq('user_id', user.id)
+                .eq('is_read', false);
+            
             setNotifications(notifications.map(n => ({ ...n, is_read: true })));
             toast.success('All notifications marked as read');
         } catch (error) {

@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import api from '../../utils/api';
 import toast from '../../utils/toast';
+import { supabase } from '../../utils/supabase';
+import { useAuth } from '../../context/AuthContext';
 
 const ManageGigs = () => {
     const [allGigs, setAllGigs] = useState([]);
@@ -10,24 +11,23 @@ const ManageGigs = () => {
 
     const [filters, setFilters] = useState({ search: '', status: '', sort: 'newest' });
 
-    // Edit Modal State
-    const [editGigId, setEditGigId] = useState(null);
-    const [showEditModal, setShowEditModal] = useState(false);
-    const [editForm, setEditForm] = useState({
-        title: '', description: '', type: 'one-time', status: 'active',
-        skills: '', budget: '', deadline: '', location: ''
-    });
-
+    const [editingGig, setEditingGig] = useState(null);
+    const { user } = useAuth();
+    
     const loadGigs = async () => {
+        if (!user) return;
         setLoading(true);
         try {
-            const res = await api.get('/gigs/active?include_drafts=true').catch(() => ({ success: false }));
-            if (res.success && res.gigs) {
-                setAllGigs(res.gigs);
-                setFilteredGigs(res.gigs);
-            }
+            const { data, error } = await supabase
+                .from('gigs')
+                .select('*')
+                .eq('user_id', user.id)
+                .order('created_at', { ascending: false });
+
+            if (error) throw error;
+            if (data) setAllGigs(data);
         } catch (error) {
-            toast.error('Failed to load gigs.');
+            toast.error('Failed to load gigs');
         } finally {
             setLoading(false);
         }
@@ -86,17 +86,20 @@ const ManageGigs = () => {
         e.preventDefault();
         try {
             const payload = {
-                gig_id: editGigId,
                 ...editForm,
                 budget: parseFloat(editForm.budget)
             };
-            const res = await api.post('/gigs/update', payload);
-            if (res.success) {
+            const { error } = await supabase
+                .from('gigs')
+                .update(payload)
+                .eq('id', editGigId);
+                
+            if (!error) {
                 toast.success('Gig updated successfully!');
                 setShowEditModal(false);
                 loadGigs();
             } else {
-                toast.error(res.error || 'Failed to update gig.');
+                toast.error('Failed to update gig.');
             }
         } catch (error) {
             toast.error('Error updating gig');
@@ -106,12 +109,16 @@ const ManageGigs = () => {
     const deleteGig = async (id, title) => {
         if (!window.confirm(`Are you sure you want to delete "${title}"?`)) return;
         try {
-            const res = await api.post('/gigs/delete', { gig_id: id });
-            if (res.success) {
+            const { error } = await supabase
+                .from('gigs')
+                .delete()
+                .eq('id', id);
+                
+            if (!error) {
                 toast.success('Gig deleted.');
                 loadGigs();
             } else {
-                toast.error(res.error || 'Failed to delete gig.');
+                toast.error('Failed to delete gig.');
             }
         } catch (error) {
             toast.error('Error deleting gig');
@@ -130,7 +137,6 @@ const ManageGigs = () => {
         
         try {
             const payload = {
-                gig_id: id,
                 title: draft.title,
                 description: draft.description,
                 type: draft.type,
@@ -140,8 +146,12 @@ const ManageGigs = () => {
                 location: draft.location,
                 status: 'active'
             };
-            const res = await api.post('/gigs/update', payload);
-            if (res.success) {
+            const { error } = await supabase
+                .from('gigs')
+                .update(payload)
+                .eq('id', id);
+                
+            if (!error) {
                 toast.success('Draft published!');
                 loadGigs();
             } else {

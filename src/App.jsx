@@ -48,7 +48,7 @@ const App = () => {
                     <Route path="/reset-password" element={<ResetPassword />} />
                     <Route path="/gigs" element={<PublicGigs />} />
                 </Route>
-                
+
                 <Route path="/student" element={
                     <ProtectedRoute role="student">
                         <StudentLayout />

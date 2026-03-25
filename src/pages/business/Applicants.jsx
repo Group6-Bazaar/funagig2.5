@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import api from '../../utils/api';
+import { supabase } from '../../utils/supabase';
+import { useAuth } from '../../context/AuthContext';
 import toast from '../../utils/toast';
 
 const Applicants = () => {
+    const { user } = useAuth();
     const [searchParams, setSearchParams] = useSearchParams();
     const navigate = useNavigate();
 
@@ -26,20 +28,37 @@ const Applicants = () => {
 
     useEffect(() => {
         loadData();
-    }, []);
+    }, [user]);
 
     const loadData = async () => {
+        if (!user) return;
         setLoading(true);
         try {
-            const gigsRes = await api.get('/gigs/active?include_drafts=false').catch(() => ({ success: false }));
-            if (gigsRes.success && gigsRes.gigs) {
-                setGigs(gigsRes.gigs);
+            const { data: gigsData, error: gigsError } = await supabase
+                .from('gigs')
+                .select('*')
+                .eq('user_id', user.id)
+                .neq('status', 'draft');
+
+            if (gigsError) throw gigsError;
+            
+            let gigIds = [];
+            if (gigsData) {
+                setGigs(gigsData);
+                gigIds = gigsData.map(g => g.id);
             }
 
-            const appsRes = await api.get('/applicants').catch(() => ({ success: false }));
-            if (appsRes.success) {
-                const apps = appsRes.applicants || appsRes.applications || [];
-                setAllApplicants(apps);
+            if (gigIds.length > 0) {
+                const { data: appsData, error: appsError } = await supabase
+                    .from('application_details')
+                    .select('*')
+                    .in('gig_id', gigIds)
+                    .order('applied_at', { ascending: false });
+
+                if (appsError) throw appsError;
+                if (appsData) setAllApplicants(appsData);
+            } else {
+                setAllApplicants([]);
             }
         } catch (error) {
             toast.error('Error loading data.');
@@ -51,7 +70,7 @@ const Applicants = () => {
     useEffect(() => {
         let result = [...allApplicants];
 
-        if (filters.gig) result = result.filter(a => a.gig_id == filters.gig);
+        if (filters.gig) result = result.filter(a => String(a.gig_id) === String(filters.gig));
         if (filters.status) result = result.filter(a => a.status === filters.status);
         if (filters.search) {
             const q = filters.search.toLowerCase();
@@ -75,7 +94,6 @@ const Applicants = () => {
 
         setFilteredApplicants(result);
 
-        // Update URL
         const params = new URLSearchParams();
         if (filters.search) params.set('search', filters.search);
         if (filters.gig) params.set('gig', filters.gig);
@@ -91,15 +109,32 @@ const Applicants = () => {
         if (!window.confirm(`Are you sure you want to ${action} ${studentName}'s application?`)) return;
 
         try {
-            const res = await api.post(`/applicants/${action}`, { application_id: applicantId });
-            if (res.success) {
-                toast.success(`Application ${action}ed successfully.`);
-                if (action === 'accept' && studentId) {
-                    await api.post('/conversations', { user_id: studentId }).catch(() => {});
+            const newStatus = action === 'accept' ? 'accepted' : 'rejected';
+            const { error } = await supabase
+                .from('applications')
+                .update({ status: newStatus })
+                .eq('id', applicantId);
+                
+            if (error) throw error;
+            
+            toast.success(`Application ${newStatus} successfully.`);
+            
+            setAllApplicants(prev => prev.map(a => a.id === applicantId ? { ...a, status: newStatus } : a));
+            
+            if (action === 'accept' && studentId) {
+                // Check if conversation exists, if not, create one
+                const { data: convData } = await supabase
+                    .from('conversations')
+                    .select('*')
+                    .or(`user1_id.eq.${user.id},user1_id.eq.${studentId}`)
+                    .or(`user2_id.eq.${user.id},user2_id.eq.${studentId}`);
+                    
+                if (!convData || convData.length === 0) {
+                    await supabase.from('conversations').insert([{
+                        user1_id: user.id,
+                        user2_id: studentId
+                    }]);
                 }
-                loadData(); // refresh list
-            } else {
-                toast.error(res.error || `Failed to ${action} application.`);
             }
         } catch (error) {
             toast.error(`Error processing action.`);
@@ -111,10 +146,14 @@ const Applicants = () => {
         setShowStudentModal(true);
         setModalLoading(true);
         try {
-            const userRes = await api.get(`/users/${applicant.user_id}`);
-            if (userRes.success) {
-                setStudentProfile(userRes.user);
-            }
+            const { data, error } = await supabase
+                .from('users')
+                .select('*')
+                .eq('id', applicant.user_id)
+                .single();
+                
+            if (error) throw error;
+            if (data) setStudentProfile(data);
         } catch {
             toast.error('Failed to load profile details.');
         } finally {
@@ -124,7 +163,17 @@ const Applicants = () => {
 
     const handleMessage = async (studentId) => {
         try {
-            await api.post('/conversations', { user_id: studentId });
+            const { data: convData } = await supabase
+                .from('conversations')
+                .select('*')
+                .or(`and(user1_id.eq.${user.id},user2_id.eq.${studentId}),and(user1_id.eq.${studentId},user2_id.eq.${user.id})`);
+                
+            if (!convData || convData.length === 0) {
+                await supabase.from('conversations').insert([{
+                    user1_id: user.id,
+                    user2_id: studentId
+                }]);
+            }
             navigate('/business/messages');
         } catch (error) {
             toast.error('Failed to create conversation');

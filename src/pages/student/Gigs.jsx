@@ -1,18 +1,22 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
-import api from '../../utils/api';
+import { supabase } from '../../utils/supabase';
+import { useAuth } from '../../context/AuthContext';
 import toast from '../../utils/toast';
 
 const Gigs = () => {
+    const { user } = useAuth();
     const location = useLocation();
-    const [activeTab, setActiveTab] = useState('browse');
-    const [searchTerm, setSearchTerm] = useState('');
-    const [currentSort, setCurrentSort] = useState('newest');
-
+    
     const [allGigs, setAllGigs] = useState([]);
     const [savedGigs, setSavedGigs] = useState([]);
     const [applications, setApplications] = useState([]);
     const [loading, setLoading] = useState(true);
+    
+    // UI States
+    const [searchTerm, setSearchTerm] = useState('');
+    const [currentSort, setCurrentSort] = useState('newest');
+    const [activeTab, setActiveTab] = useState('browse');
 
     useEffect(() => {
         const hash = location.hash.replace('#', '');
@@ -21,51 +25,73 @@ const Gigs = () => {
         }
     }, [location.hash]);
 
+    const fetchGigsData = async () => {
+        if (!user) return;
+        setLoading(true);
+        try {
+            // Fetch active gigs
+            const { data: gigsData } = await supabase
+                .from('active_gigs')
+                .select('*')
+                .order('created_at', { ascending: false });
+
+            if (gigsData) setAllGigs(gigsData);
+
+            // Fetch saved gigs
+            const { data: savedData } = await supabase
+                .from('saved_gigs')
+                .select('gig_id')
+                .eq('user_id', user.id);
+
+            if (savedData) setSavedGigs(savedData.map(s => s.gig_id));
+
+            // Fetch applications
+            const { data: appsData } = await supabase
+                .from('application_details')
+                .select('*')
+                .eq('user_id', user.id);
+
+            if (appsData) setApplications(appsData);
+        } catch (error) {
+            toast.error('Failed to load gigs data.');
+        } finally {
+            setLoading(false);
+        }
+    };
+
     useEffect(() => {
-        const fetchData = async () => {
-            setLoading(true);
-            try {
-                const [gigsRes, savedRes, appsRes] = await Promise.all([
-                    api.get('/gigs').catch(() => ({ success: false })),
-                    api.get('/saved-gigs').catch(() => ({ success: false })),
-                    api.get('/applications').catch(() => ({ success: false }))
-                ]);
+        fetchGigsData();
+    }, [user]);
 
-                if (gigsRes.success && gigsRes.gigs) setAllGigs(gigsRes.gigs);
-                if (savedRes.success && savedRes.saved_gigs) setSavedGigs(savedRes.saved_gigs);
-                if (appsRes.success && appsRes.applications) setApplications(appsRes.applications);
-            } catch (error) {
-                console.error('Failed to fetch gig data:', error);
-            } finally {
-                setLoading(false);
-            }
-        };
-        fetchData();
-    }, []);
-
-    const toggleSaveGig = async (gigId, isSaved) => {
+    const toggleSaveGig = async (gigId, e) => {
+        if (e) e.stopPropagation();
+        
+        const isSaved = savedGigs.includes(gigId);
+        
         try {
             if (isSaved) {
-                const res = await api.delete(`/saved-gigs?gig_id=${gigId}`);
-                if (res.success) {
-                    setSavedGigs(savedGigs.filter(g => g.id !== gigId));
-                    toast.success('Gig removed from saved');
-                }
+                const { error } = await supabase
+                    .from('saved_gigs')
+                    .delete()
+                    .eq('user_id', user.id)
+                    .eq('gig_id', gigId);
+                if (error) throw error;
+                setSavedGigs(savedGigs.filter(id => id !== gigId));
+                toast.success('Gig removed from saved');
             } else {
-                const res = await api.post('/saved-gigs', { gig_id: gigId });
-                if (res.success) {
-                    const gig = allGigs.find(g => g.id === gigId);
-                    if (gig) setSavedGigs([...savedGigs, gig]);
-                    toast.success('Gig saved!');
-                }
+                const { error } = await supabase
+                    .from('saved_gigs')
+                    .insert([{ user_id: user.id, gig_id: gigId }]);
+                if (error) throw error;
+                setSavedGigs([...savedGigs, gigId]);
+                toast.success('Gig saved successfully');
             }
         } catch (error) {
-            toast.error('Failed to save/unsave gig');
+            toast.error('Failed to update saved gig');
         }
     };
 
     const applyToGig = async (gigId, title) => {
-        // Quick mock application for now, a real modal could be added later
         const alreadyApplied = applications.find(app => String(app.gig_id) === String(gigId));
         if (alreadyApplied) {
             toast.error('You have already applied to this gig');
@@ -76,14 +102,24 @@ const Gigs = () => {
         if (!message) return;
 
         try {
-            const res = await api.post('/applications', { gig_id: gigId, message });
-            if (res.success) {
-                toast.success('Application submitted successfully!');
-                // refresh applications
-                const newAppsRes = await api.get('/applications');
-                if (newAppsRes.success) setApplications(newAppsRes.applications);
+            const { error } = await supabase
+                .from('applications')
+                .insert([{
+                    user_id: user.id,
+                    gig_id: gigId,
+                    message: message,
+                    status: 'pending'
+                }]);
+
+            if (error) {
+                if (error.code === '23505') {
+                    toast.error('You have already applied to this gig');
+                } else {
+                    throw error;
+                }
             } else {
-                toast.error(res.error || 'Failed to submit application');
+                toast.success('Application submitted successfully!');
+                fetchGigsData();
             }
         } catch (error) {
             toast.error('Application error occurred');
@@ -105,7 +141,7 @@ const Gigs = () => {
             return 0;
         });
 
-    const isGigSaved = (gigId) => savedGigs.some(g => g.id === gigId);
+    const isGigSaved = (gigId) => savedGigs.includes(gigId);
 
     const renderGigCard = (gig, context = 'browse') => {
         const deadline = gig.deadline ? new Date(gig.deadline).toLocaleDateString() : 'N/A';
@@ -126,16 +162,15 @@ const Gigs = () => {
                 <div style={{ display: 'grid', gap: '10px' }}>
                     {context === 'browse' && (
                         <>
-                            <button className={`btn ${isSaved ? 'secondary' : ''}`} onClick={() => toggleSaveGig(gig.id, isSaved)}>
+                            <button className={`btn ${isSaved ? 'secondary' : ''}`} onClick={(e) => toggleSaveGig(gig.id, e)}>
                                 {isSaved ? '✓ Saved' : 'Save'}
                             </button>
                             <button className="btn" onClick={() => applyToGig(gig.id, gig.title)}>Apply</button>
-                            <button className="btn secondary" onClick={() => toast.success('Interest logged!')}>Interest</button>
                         </>
                     )}
                     {context === 'saved' && (
                         <>
-                            <button className="btn secondary" onClick={() => toggleSaveGig(gig.id, true)}>Remove</button>
+                            <button className="btn secondary" onClick={(e) => toggleSaveGig(gig.id, e)}>Remove</button>
                             <button className="btn" onClick={() => applyToGig(gig.id, gig.title)}>Apply</button>
                         </>
                     )}
@@ -200,7 +235,7 @@ const Gigs = () => {
                                 {savedGigs.length === 0 ? (
                                     <p className="subtle">No saved gigs.</p>
                                 ) : (
-                                    savedGigs.map(gig => renderGigCard(gig, 'saved'))
+                                    allGigs.filter(g => isGigSaved(g.id)).map(gig => renderGigCard(gig, 'saved'))
                                 )}
                             </div>
                         </div>
@@ -226,7 +261,7 @@ const Gigs = () => {
                                         <article key={app.id} className="section mb-10">
                                             <h3>{app.gig_title || 'Unknown Gig'}</h3>
                                             <p className="subtle">Status: <span className={`badge ${app.status === 'accepted' ? 'success' : app.status === 'rejected' ? 'danger' : 'warning'}`}>{app.status}</span></p>
-                                            <p className="subtle mt-5" style={{ fontSize: '12px' }}>Applied on: {new Date(app.created_at).toLocaleDateString()}</p>
+                                            <p className="subtle mt-5" style={{ fontSize: '12px' }}>Applied on: {new Date(app.created_at || app.applied_at).toLocaleDateString()}</p>
                                         </article>
                                     ))
                                 )}

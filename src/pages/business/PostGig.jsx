@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import api from '../../utils/api';
-import toast from '../../utils/toast';
+import { useAuth } from '../../context/AuthContext';
+import { supabase } from '../../utils/supabase';
 
 const PostGig = () => {
     const navigate = useNavigate();
+    const { user } = useAuth();
     
     const [gigForm, setGigForm] = useState({
         title: '',
@@ -49,12 +50,20 @@ const PostGig = () => {
 
         setIsSubmitting(true);
         try {
-            const res = await api.post('/gigs', { ...gigForm, status: 'active', budget: parseFloat(gigForm.budget) });
-            if (res.success) {
+            const { error: dbError } = await supabase
+                .from('gigs')
+                .insert([{
+                    user_id: user.id,
+                    ...gigForm,
+                    status: 'active',
+                    budget: parseFloat(gigForm.budget)
+                }]);
+
+            if (!dbError) {
                 toast.success('Gig posted successfully!');
                 setTimeout(() => navigate('/business/gigs'), 1500);
             } else {
-                toast.error(res.error || 'Failed to post gig.');
+                toast.error(dbError.message || 'Failed to post gig.');
             }
         } catch (error) {
             toast.error('An error occurred.');
@@ -67,21 +76,26 @@ const PostGig = () => {
         setIsSaving(true);
         try {
             const draftData = {
+                user_id: user.id,
                 title: gigForm.title || 'Untitled Draft',
                 description: gigForm.description || '',
                 type: gigForm.type || 'one-time',
                 skills: gigForm.skills || '',
                 budget: gigForm.budget ? parseFloat(gigForm.budget) : 0,
-                deadline: gigForm.deadline || null,
+                deadline: gigForm.deadline || new Date().toISOString().split('T')[0],
                 location: gigForm.location || 'Remote',
                 status: 'draft'
             };
 
-            const res = await api.post('/gigs', draftData);
-            if (res.success) {
+            const { error: dbError } = await supabase
+                .from('gigs')
+                .insert([draftData]);
+
+            if (!dbError) {
                 toast.success('Draft saved successfully!');
+                setTimeout(() => navigate('/business/gigs'), 1500);
             } else {
-                toast.error(res.error || 'Failed to save draft.');
+                toast.error(dbError.message || 'Failed to save draft.');
             }
         } catch (error) {
             toast.error('An error occurred.');

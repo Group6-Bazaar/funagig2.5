@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import api from '../../utils/api';
+import { supabase } from '../../utils/supabase';
 import toast from '../../utils/toast';
 
 const Profile = () => {
@@ -28,37 +28,49 @@ const Profile = () => {
 
     useEffect(() => {
         const fetchProfileData = async () => {
+            if (!user) return;
             setLoading(true);
             try {
                 // Initialize form from context
-                if (user) {
-                    setProfileForm({
-                        name: user.name || '', email: user.email || '', phone: user.phone || '',
-                        university: user.university || '', major: user.major || '',
-                        year: user.year || 'Year 2', availability: user.availability || 'Part-Time',
-                        payment: user.payment || '', skills: user.skills || ''
-                    });
+                setProfileForm({
+                    name: user.name || '', email: user.email || '', phone: user.phone || '',
+                    university: user.university || '', major: user.major || '',
+                    year: user.year || 'Year 2', availability: user.availability || 'Part-Time',
+                    payment: user.payment || '', skills: user.skills || ''
+                });
+
+                // Fetch real profile from DB in case it diverged
+                const { data: dbUser } = await supabase.from('users').select('*').eq('id', user.id).single();
+                if (dbUser) {
+                    setProfileForm(prev => ({ ...prev, ...dbUser }));
                 }
 
-                const [profileRes, appsRes, compRes] = await Promise.all([
-                    api.get('/profile').catch(() => ({ success: false })),
-                    api.get('/applications').catch(() => ({ success: false })),
-                    api.get('/applications?status=completed').catch(() => ({ success: false }))
-                ]);
+                // Fetch applications
+                const { data: appsData } = await supabase
+                    .from('application_details')
+                    .select('*')
+                    .eq('user_id', user.id)
+                    .order('applied_at', { ascending: false });
 
-                if (profileRes.success && profileRes.user) {
-                    setProfileForm(prev => ({ ...prev, ...profileRes.user }));
-                    setUser({ ...user, ...profileRes.user });
+                if (appsData) {
+                    setApplications(appsData);
+                    setCompletedGigs(appsData.filter(a => a.status === 'completed'));
                 }
 
-                if (appsRes.success) setApplications(appsRes.applications || []);
-                if (compRes.success) setCompletedGigs(compRes.applications || []);
+                // Fetch reviews
+                const { data: reviewsData } = await supabase
+                    .from('reviews')
+                    .select('*')
+                    .eq('reviewee_id', user.id);
 
-                if (user?.id) {
-                    const reviewRes = await api.get(`/reviews/${user.id}`).catch(() => ({ success: false }));
-                    if (reviewRes.success) {
-                        setReviews(reviewRes.reviews || []);
-                        setRatingStats(reviewRes.rating_stats);
+                if (reviewsData) {
+                    setReviews(reviewsData);
+                    if (reviewsData.length > 0) {
+                        const total = reviewsData.reduce((acc, r) => acc + r.rating, 0);
+                        setRatingStats({
+                            total_reviews: reviewsData.length,
+                            average_rating: total / reviewsData.length
+                        });
                     }
                 }
             } catch (error) {
@@ -69,18 +81,22 @@ const Profile = () => {
         };
 
         fetchProfileData();
-    }, [user?.id, setUser]);
+    }, [user]);
 
     const handleProfileUpdate = async (e) => {
         e.preventDefault();
         setIsSaving(true);
         try {
-            const res = await api.put('/profile', profileForm);
-            if (res.success) {
+            const { error } = await supabase
+                .from('users')
+                .update(profileForm)
+                .eq('id', user.id);
+
+            if (!error) {
                 toast.success('Profile updated successfully!');
                 setUser({ ...user, ...profileForm });
             } else {
-                toast.error(res.error || 'Failed to update profile');
+                toast.error('Failed to update profile');
             }
         } catch (error) {
             toast.error('An error occurred while updating profile.');
@@ -98,25 +114,36 @@ const Profile = () => {
             return;
         }
 
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('type', 'profile');
-
         setIsUploadingPhoto(true);
         try {
-            const res = await api.post('/upload', formData, {
-                headers: { 'Content-Type': 'multipart/form-data' } // Browser usually sets boundary automatically but depends on api setup
-            });
+            const fileExt = file.name.split('.').pop();
+            const fileName = `${user.id}-${Math.random()}.${fileExt}`;
+            const filePath = `profile-pictures/${fileName}`;
 
-            if (res.success) {
-                const imageUrl = res.file_url || res.file_path;
-                setUser({ ...user, profile_image: imageUrl });
-                toast.success('Photo updated successfully!');
-            } else {
-                toast.error(res.error || 'Failed to upload photo');
-            }
+            // Upload the file to Supabase storage
+            const { error: uploadError } = await supabase.storage
+                .from('avatars')
+                .upload(filePath, file);
+
+            if (uploadError) throw uploadError;
+
+            // Get public URL
+            const { data: { publicUrl } } = supabase.storage
+                .from('avatars')
+                .getPublicUrl(filePath);
+
+            // Update user profile with new URL
+            const { error: updateError } = await supabase
+                .from('users')
+                .update({ profile_image: publicUrl })
+                .eq('id', user.id);
+
+            if (updateError) throw updateError;
+
+            setUser({ ...user, profile_image: publicUrl });
+            toast.success('Photo updated successfully!');
         } catch (error) {
-            toast.error('Error uploading photo');
+            toast.error('Failed to upload photo. Please ensure avatars bucket exists.');
         } finally {
             setIsUploadingPhoto(false);
         }
@@ -126,7 +153,7 @@ const Profile = () => {
         e.preventDefault();
         if (!portfolioForm.file) return;
         
-        // Mocking portfolio add since endpoint isn't clearly defined yet
+        // Mocking portfolio add for now
         const newItem = {
             id: Date.now(),
             category: portfolioForm.category,
@@ -141,7 +168,7 @@ const Profile = () => {
         toast.success("Portfolio item added.");
     };
 
-    if (loading) return <div className="text-center mt-40">Loading profile data...</div>;
+    if (loading || !user) return <div className="text-center mt-40 subtle">Loading profile data...</div>;
 
     const initials = user?.name ? user.name.split(' ').map(n => n[0]).join('').toUpperCase() : 'U';
 

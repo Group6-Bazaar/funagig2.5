@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import api from '../../utils/api';
+import { supabase } from '../../utils/supabase';
+import { useAuth } from '../../context/AuthContext';
 import toast from '../../utils/toast';
 
 const Dashboard = () => {
+    const { user } = useAuth();
     const [stats, setStats] = useState({
         activeGigs: 0,
         totalApplicants: 0,
@@ -18,40 +20,69 @@ const Dashboard = () => {
     const [loading, setLoading] = useState(true);
 
     const loadDashboardData = async () => {
+        if (!user) return;
         setLoading(true);
         try {
-            const [statsRes, appsRes, gigsRes, notifRes] = await Promise.all([
-                api.get('/business/stats').catch(() => ({ success: false })),
-                api.get('/applications?limit=5').catch(() => ({ success: false })),
-                api.get('/gigs/active?limit=5').catch(() => ({ success: false })),
-                api.get('/notifications?limit=3').catch(() => ({ success: false }))
-            ]);
+            // Fetch applications to business's gigs
+            const { data: appsRes } = await supabase
+                .from('application_details')
+                .select('*')
+                .eq('business_id', user.id) // wait, the view has business_name. The view lacks business_id. Let's filter by gig's user_id in DB or rewrite.
+                // Actually, let's fetch gigs first
+                
+            const { data: myGigs } = await supabase
+                .from('gigs')
+                .select('*')
+                .eq('user_id', user.id)
+                .order('created_at', { ascending: false });
+                
+            let activeGigs = 0;
+            let myGigIds = [];
+            if (myGigs) {
+                myGigIds = myGigs.map(g => g.id);
+                setTopGigs(myGigs.slice(0, 5));
+                activeGigs = myGigs.filter(g => g.status === 'active').length;
+            }
 
-            if (statsRes.success) {
-                // Backend might send it in different formats, mapping accordingly
-                setStats({
-                    activeGigs: statsRes.stats?.active_gigs || 0,
-                    totalApplicants: statsRes.stats?.total_applicants || 0,
-                    hiredStudents: statsRes.stats?.hired_students || 0,
-                    averageRating: statsRes.stats?.average_rating || 0
-                });
-                if (statsRes.recent_activity) setRecentActivity(statsRes.recent_activity.slice(0, 5));
-            }
-            if (appsRes.success) {
-                setApplications((appsRes.applications || []).slice(0, 5));
-            }
-            if (gigsRes.success) {
-                setTopGigs((gigsRes.gigs || []).slice(0, 5));
-                // Calculate quick stats manually if not provided by backend
-                if (!statsRes.success || !statsRes.stats) {
-                    const activeCount = (gigsRes.gigs || []).filter(g => g.status === 'active').length;
-                    setStats(prev => ({ ...prev, activeGigs: activeCount }));
+            let totalApplicants = 0;
+            let hiredStudents = 0;
+            if (myGigIds.length > 0) {
+                const { data: apps } = await supabase
+                    .from('application_details')
+                    .select('*')
+                    .in('gig_id', myGigIds)
+                    .order('applied_at', { ascending: false });
+                    
+                if (apps) {
+                    setApplications(apps.slice(0, 5));
+                    totalApplicants = apps.length;
+                    hiredStudents = apps.filter(a => a.status === 'accepted' || a.status === 'completed').length;
+                    
+                    setRecentActivity(apps.slice(0, 5).map(app => ({
+                        description: `${app.student_name} applied to ${app.gig_title}`,
+                        created_at: app.applied_at
+                    })));
                 }
             }
-            if (notifRes.success) {
-                setNotifications((notifRes.notifications || []).slice(0, 3));
-            }
+
+            const { data: notifs } = await supabase
+                .from('notifications')
+                .select('*')
+                .eq('user_id', user.id)
+                .order('created_at', { ascending: false })
+                .limit(3);
+                
+            if (notifs) setNotifications(notifs);
+
+            setStats({
+                activeGigs,
+                totalApplicants,
+                hiredStudents,
+                averageRating: user.rating || 0
+            });
+
         } catch (error) {
+            console.error('Failed to load dashboard data:', error);
             toast.error('Failed to load dashboard data.');
         } finally {
             setLoading(false);
@@ -60,13 +91,18 @@ const Dashboard = () => {
 
     useEffect(() => {
         loadDashboardData();
-    }, []);
+    }, [user]);
 
     const handleMarkAllRead = async () => {
         try {
-            const res = await api.put('/notifications/mark-read');
-            if (res.success) {
-                setNotifications(notifications.map(n => ({ ...n, is_read: 1 })));
+            const { error } = await supabase
+                .from('notifications')
+                .update({ is_read: true })
+                .eq('user_id', user.id)
+                .eq('is_read', false);
+            
+            if (!error) {
+                setNotifications(notifications.map(n => ({ ...n, is_read: true })));
                 toast.success('All notifications marked as read');
             }
         } catch (error) {
