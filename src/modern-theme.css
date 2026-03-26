@@ -93,6 +93,61 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .brand {
     box-shadow: 0 4px 10px rgba(79, 70, 229, 0.3) !important;
 }
 
+/* Tab Buttons (Browse / Saved / Interested / Applications) */
+.tabs {
+    display: flex;
+    gap: 6px;
+    padding: 4px;
+    background: var(--primary-light);
+    border-radius: 12px;
+    width: fit-content;
+    margin-bottom: 20px;
+}
+
+.tab {
+    padding: 8px 18px;
+    border: none;
+    border-radius: 10px;
+    font-family: var(--font-body) !important;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    background: transparent;
+    color: var(--primary);
+    transition: var(--transition);
+    white-space: nowrap;
+}
+
+.tab:hover {
+    background: rgba(99, 102, 241, 0.12);
+    color: var(--primary);
+}
+
+.tab.active {
+    background: var(--primary) !important;
+    color: white !important;
+    box-shadow: 0 4px 10px rgba(79, 70, 229, 0.3);
+}
+
+/* Tab dark mode overrides */
+:root.dark .tabs {
+    background: rgba(99, 102, 241, 0.12) !important;
+}
+
+:root.dark .tab {
+    color: #a5b4fc !important;
+}
+
+:root.dark .tab:hover {
+    background: rgba(99, 102, 241, 0.2) !important;
+    color: #c7d2fe !important;
+}
+
+:root.dark .tab.active {
+    background: var(--primary) !important;
+    color: white !important;
+}
+
 /* Premium Buttons */
 .btn {
     font-family: var(--font-body) !important;
