@@ -409,3 +409,139 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .brand {
     color: var(--muted) !important;
     border-color: var(--border) !important;
 }
+
+/* ============================================
+   RESPONSIVE GIG CARDS & APPLICATIONS
+   ============================================ */
+
+/* Gig Card — 3-column desktop layout */
+.gig-card {
+    display: grid;
+    grid-template-columns: 140px 1fr auto;
+    gap: 16px;
+    align-items: start;
+    margin-bottom: 16px;
+}
+
+.gig-card__thumb {
+    height: 110px;
+    background: linear-gradient(135deg, var(--primary-light), #c7d2fe);
+    border-radius: 10px;
+    flex-shrink: 0;
+}
+
+.gig-card__body {
+    min-width: 0; /* allow text to truncate */
+}
+
+.gig-card__actions {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 100px;
+}
+
+/* Tabs row wraps on small screens */
+.tabs {
+    flex-wrap: wrap !important;
+}
+
+/* Application history cards */
+.app-card {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 16px;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    background: var(--bg);
+    margin-bottom: 10px;
+}
+
+.app-card__info {
+    min-width: 0;
+}
+
+.app-card__title {
+    font-weight: 600;
+    margin-bottom: 4px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Tablet — stack thumb below content */
+@media (max-width: 768px) {
+    .gig-card {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto;
+    }
+
+    .gig-card__thumb {
+        height: 160px;
+        width: 100%;
+    }
+
+    .gig-card__actions {
+        flex-direction: row;
+        min-width: unset;
+    }
+
+    .gig-card__actions .btn {
+        flex: 1;
+    }
+
+    .app-card {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .app-card .pill {
+        align-self: flex-start;
+    }
+}
+
+/* Mobile — tighten spacing */
+@media (max-width: 480px) {
+    .gig-card__thumb {
+        height: 120px;
+    }
+
+    .tabs {
+        gap: 4px !important;
+        padding: 3px !important;
+    }
+
+    .tab {
+        padding: 6px 12px !important;
+        font-size: 13px !important;
+    }
+
+    .content {
+        padding: 14px !important;
+    }
+
+    .gig-card__actions .btn {
+        padding: 8px 10px !important;
+        font-size: 12px !important;
+    }
+}
+
+/* Sidebar collapses on very small screens */
+@media (max-width: 600px) {
+    .sidebar {
+        width: 60px !important;
+        overflow: hidden;
+    }
+
+    .sidebar .navitem span,
+    .sidebar .brand-name {
+        display: none !important;
+    }
+
+    .sidebar .navitem {
+        justify-content: center !important;
+        padding: 12px 8px !important;
+    }
+}

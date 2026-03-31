@@ -148,30 +148,30 @@ const Gigs = () => {
         const isSaved = isGigSaved(gig.id);
 
         return (
-            <article key={gig.id} className="section" style={{ display: 'grid', gridTemplateColumns: '160px 1fr auto', gap: '16px', marginBottom: '16px' }}>
-                <div style={{ height: '120px', background: '#dbeafe', borderRadius: '12px' }}></div>
-                <div>
+            <article key={gig.id} className="gig-card section">
+                <div className="gig-card__thumb" />
+                <div className="gig-card__body">
                     <h3 style={{ margin: '0 0 8px 0' }}>{gig.title || 'Untitled Gig'}</h3>
-                    <p className="subtle" style={{ marginBottom: '8px' }}>{(gig.description || '').substring(0, 100)}...</p>
-                    <div className="flex items-center gap-10" style={{ flexWrap: 'wrap', marginTop: '8px' }}>
-                        {gig.skills && <span className="pill blue">{gig.skills.split(',')[0].trim()}</span>}
-                        <span className="subtle" style={{ fontSize: '12px' }}>Budget: sh.{parseInt(gig.budget || 0).toLocaleString()}</span>
-                        <span className="subtle" style={{ fontSize: '12px' }}>Deadline: {deadline}</span>
+                    <p className="subtle" style={{ marginBottom: '8px', fontSize: '14px' }}>{(gig.description || '').substring(0, 120)}...</p>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '8px' }}>
+                        {gig.skills && <span className="pill gray">{gig.skills.split(',')[0].trim()}</span>}
+                        <span className="subtle" style={{ fontSize: '12px' }}>💰 sh.{parseInt(gig.budget || 0).toLocaleString()}</span>
+                        <span className="subtle" style={{ fontSize: '12px' }}>📅 {deadline}</span>
                     </div>
                 </div>
-                <div style={{ display: 'grid', gap: '10px' }}>
+                <div className="gig-card__actions">
                     {context === 'browse' && (
                         <>
-                            <button className={`btn ${isSaved ? 'secondary' : ''}`} onClick={(e) => toggleSaveGig(gig.id, e)}>
+                            <button className={`btn ${isSaved ? 'secondary' : ''}`} style={{ fontSize: '13px', padding: '8px 14px' }} onClick={(e) => toggleSaveGig(gig.id, e)}>
                                 {isSaved ? '✓ Saved' : 'Save'}
                             </button>
-                            <button className="btn" onClick={() => applyToGig(gig.id, gig.title)}>Apply</button>
+                            <button className="btn" style={{ fontSize: '13px', padding: '8px 14px' }} onClick={() => applyToGig(gig.id, gig.title)}>Apply</button>
                         </>
                     )}
                     {context === 'saved' && (
                         <>
-                            <button className="btn secondary" onClick={(e) => toggleSaveGig(gig.id, e)}>Remove</button>
-                            <button className="btn" onClick={() => applyToGig(gig.id, gig.title)}>Apply</button>
+                            <button className="btn secondary" style={{ fontSize: '13px', padding: '8px 14px' }} onClick={(e) => toggleSaveGig(gig.id, e)}>Remove</button>
+                            <button className="btn" style={{ fontSize: '13px', padding: '8px 14px' }} onClick={() => applyToGig(gig.id, gig.title)}>Apply</button>
                         </>
                     )}
                 </div>
@@ -276,22 +276,34 @@ const Gigs = () => {
                     {/* Applications Tab */}
                     {activeTab === 'applications' && (
                         <div className="tab-content mt-20" style={{ display: 'block' }}>
-                            <h2>My Applications</h2>
-                            <div className="mt-20">
-                                {applications.length === 0 ? (
-                                    <p className="subtle">You haven't applied to any gigs yet.</p>
-                                ) : (
-                                    applications.map(app => (
-                                        <article key={app.id} className="section mb-10">
-                                            <h3>{app.gig_title || 'Unknown Gig'}</h3>
-                                            <p className="subtle">Status: <span className={`badge ${app.status === 'accepted' ? 'success' : app.status === 'rejected' ? 'danger' : 'warning'}`}>{app.status}</span></p>
-                                            <p className="subtle mt-5" style={{ fontSize: '12px' }}>Applied on: {new Date(app.created_at || app.applied_at).toLocaleDateString()}</p>
-                                        </article>
-                                    ))
-                                )}
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                                <h2 style={{ margin: 0 }}>My Applications</h2>
+                                <span className="pill gray">{applications.length} total</span>
                             </div>
+                            {applications.length === 0 ? (
+                                <div className="section" style={{ textAlign: 'center', padding: '40px' }}>
+                                    <div style={{ fontSize: '40px', marginBottom: '12px' }}>📋</div>
+                                    <p style={{ fontWeight: '600', marginBottom: '8px' }}>No applications yet</p>
+                                    <p className="subtle" style={{ fontSize: '14px' }}>Browse available gigs and hit Apply to get started.</p>
+                                </div>
+                            ) : (
+                                applications.map(app => (
+                                    <div key={app.id} className="app-card">
+                                        <div className="app-card__info">
+                                            <div className="app-card__title">{app.gig_title || 'Unknown Gig'}</div>
+                                            <div className="subtle" style={{ fontSize: '12px' }}>
+                                                Applied {new Date(app.created_at || app.applied_at).toLocaleDateString()}
+                                            </div>
+                                        </div>
+                                        <span className={`pill ${app.status === 'accepted' ? 'green' : app.status === 'rejected' ? 'red' : 'yellow'}`}>
+                                            {app.status}
+                                        </span>
+                                    </div>
+                                ))
+                            )}
                         </div>
                     )}
+
                 </>
             )}
         </>
