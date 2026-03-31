@@ -22,11 +22,13 @@ const Messaging = () => {
     const loadConversations = async () => {
         if (!user) return;
         try {
-            const { data } = await supabase
-                .from('conversation_details')
+            const { data, error } = await supabase
+                .from('conversation_summary')
                 .select('*')
                 .or(`user1_id.eq.${user.id},user2_id.eq.${user.id}`)
-                .order('updated_at', { ascending: false });
+                .order('last_message_time', { ascending: false, nullsFirst: false });
+
+            if (error) throw error;
 
             if (data) {
                 const formatted = data.map(conv => {
@@ -35,14 +37,14 @@ const Messaging = () => {
                         id: conv.id,
                         other_user_id: isUser1 ? conv.user2_id : conv.user1_id,
                         other_user_name: isUser1 ? conv.user2_name : conv.user1_name,
-                        last_message: conv.last_message_content,
-                        last_message_time: conv.updated_at,
+                        last_message: conv.last_message,
+                        last_message_time: conv.last_message_time || conv.created_at,
                         unread_count: 0,
                     };
                 });
                 setConversations(formatted);
             }
-        } catch (err) { console.error(err); }
+        } catch (err) { console.error('Error loading conversations:', err); }
     };
 
     useEffect(() => { loadConversations(); }, [user]);
@@ -122,16 +124,17 @@ const Messaging = () => {
             const { error } = await supabase.from('messages').insert([{
                 conversation_id: selectedConversation.id,
                 sender_id: user.id,
-                receiver_id: selectedConversation.other_user_id,
                 content: messageInput,
-                attachments: attachmentArr ? JSON.stringify(attachmentArr) : null,
             }]);
             if (error) throw error;
-            await supabase.from('conversations').update({ updated_at: new Date().toISOString() }).eq('id', selectedConversation.id);
+            await supabase.from('conversations').update({ last_message_at: new Date().toISOString() }).eq('id', selectedConversation.id);
             setMessageInput('');
             setFileInput(null);
             setFilePreviewUrl(null);
-        } catch { toast.error('Error sending message'); }
+        } catch (error) { 
+            console.error('Send message error:', error);
+            toast.error(error?.message || 'Error sending message'); 
+        }
     };
 
     const handleTyping = (e) => {

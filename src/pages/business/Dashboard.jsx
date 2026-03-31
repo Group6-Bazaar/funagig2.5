@@ -147,7 +147,6 @@ const Dashboard = () => {
                     await supabase.from('messages').insert([{
                         conversation_id: conversationId,
                         sender_id: user.id,
-                        receiver_id: app.user_id,
                         content: `Hi ${app.student_name || 'there'}! 🎉 Congratulations — we've accepted your application for "${app.gig_title}". We'd love to discuss the next steps with you.`,
                     }]);
                 } else {
