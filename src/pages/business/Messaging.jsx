@@ -72,12 +72,30 @@ const Messaging = () => {
             .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `conversation_id=eq.${selectedConversation.id}` },
                 async (payload) => {
                     const newMsg = payload.new;
-                    const { data: sd } = await supabase.from('users').select('name').eq('id', newMsg.sender_id).single();
-                    newMsg.sender_name = sd?.name || 'Unknown';
-                    setMessages(prev => [...prev, newMsg]);
+                    
+                    setMessages(prev => {
+                        // Avoid duplicates if we optimistically added it or already received it
+                        if (prev.find(m => m.id === newMsg.id)) return prev;
+                        // Replace matching pending message
+                        const pendingIdx = prev.findIndex(m => m.pending && m.content === newMsg.content && m.sender_id === newMsg.sender_id);
+                        if (pendingIdx !== -1) {
+                            const updated = [...prev];
+                            updated[pendingIdx] = { ...newMsg, sender_name: prev[pendingIdx].sender_name };
+                            return updated;
+                        }
+                        return [...prev, newMsg];
+                    });
+
+                    // Fetch sender name asynchronously if it wasn't a pending replacement
                     if (newMsg.sender_id !== user.id) {
+                        supabase.from('users').select('name').eq('id', newMsg.sender_id).single().then(({ data }) => {
+                            if (data) {
+                                setMessages(prev => prev.map(m => m.id === newMsg.id ? { ...m, sender_name: data.name } : m));
+                            }
+                        });
                         supabase.from('messages').update({ is_read: true }).eq('id', newMsg.id).then();
                     }
+
                     scrollToBottom();
                     loadConversations();
                 })
@@ -107,33 +125,51 @@ const Messaging = () => {
 
     const handleSendMessage = async () => {
         if (!messageInput.trim() && !fileInput) return;
-        let attachmentArr = null;
-
-        if (fileInput) {
-            try {
-                const ext = fileInput.name.split('.').pop();
-                const path = `chat-attachments/${user.id}-${Date.now()}.${ext}`;
-                const { error: upErr } = await supabase.storage.from('attachments').upload(path, fileInput);
-                if (upErr) throw upErr;
-                const { data: { publicUrl } } = supabase.storage.from('attachments').getPublicUrl(path);
-                attachmentArr = [{ file_name: fileInput.name, file_url: publicUrl, file_type: fileInput.type }];
-            } catch { toast.error('Failed to upload file'); return; }
-        }
+        
+        const tempMsgContent = messageInput;
+        const tempId = `temp-${Date.now()}`;
+        
+        // Optimistic UI update
+        const optimisticMsg = {
+            id: tempId,
+            conversation_id: selectedConversation.id,
+            sender_id: user.id,
+            sender_name: user?.name,
+            content: tempMsgContent,
+            created_at: new Date().toISOString(),
+            pending: true
+        };
+        
+        setMessages(prev => [...prev, optimisticMsg]);
+        setMessageInput('');
+        scrollToBottom();
 
         try {
-            const { error } = await supabase.from('messages').insert([{
+            // timeout wrapper to prevent infinite hang
+            const insertPromise = supabase.from('messages').insert([{
                 conversation_id: selectedConversation.id,
                 sender_id: user.id,
-                content: messageInput,
-            }]);
+                content: tempMsgContent,
+            }]).select();
+            
+            const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Network timeout')), 10000));
+            
+            const { data, error } = await Promise.race([insertPromise, timeoutPromise]);
+            
             if (error) throw error;
-            await supabase.from('conversations').update({ last_message_at: new Date().toISOString() }).eq('id', selectedConversation.id);
-            setMessageInput('');
-            setFileInput(null);
-            setFilePreviewUrl(null);
+            
+            // Reconcile ID if realtime hasn't done it yet
+            if (data && data[0]) {
+                setMessages(prev => prev.map(m => m.id === tempId ? { ...data[0], sender_name: user.name } : m));
+            }
+            
+            supabase.from('conversations').update({ last_message_at: new Date().toISOString() }).eq('id', selectedConversation.id).then();
         } catch (error) { 
             console.error('Send message error:', error);
-            toast.error(error?.message || 'Error sending message'); 
+            // Remove optimistic message on failure
+            setMessages(prev => prev.filter(m => m.id !== tempId));
+            setMessageInput(tempMsgContent); // Restore input
+            toast.error(error?.message || 'Error sending message. Check your connection.'); 
         }
     };
 
