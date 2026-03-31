@@ -110,6 +110,63 @@ const Dashboard = () => {
         }
     };
 
+    const handleUpdateApplicationStatus = async (app, newStatus) => {
+        try {
+            // 1. Update the application status
+            const { error } = await supabase
+                .from('applications')
+                .update({ status: newStatus })
+                .eq('id', app.id);
+
+            if (error) throw error;
+
+            // 2. If accepted → auto-create a conversation between business and student
+            if (newStatus === 'accepted') {
+                // Check if a conversation already exists between these two users
+                const { data: existing } = await supabase
+                    .from('conversations')
+                    .select('id')
+                    .or(
+                        `and(user1_id.eq.${user.id},user2_id.eq.${app.user_id}),and(user1_id.eq.${app.user_id},user2_id.eq.${user.id})`
+                    )
+                    .limit(1);
+
+                let conversationId;
+                if (!existing || existing.length === 0) {
+                    // Create a new conversation
+                    const { data: newConv, error: convErr } = await supabase
+                        .from('conversations')
+                        .insert([{ user1_id: user.id, user2_id: app.user_id }])
+                        .select('id')
+                        .single();
+
+                    if (convErr) throw convErr;
+                    conversationId = newConv.id;
+
+                    // Send an automatic first message from the business
+                    await supabase.from('messages').insert([{
+                        conversation_id: conversationId,
+                        sender_id: user.id,
+                        receiver_id: app.user_id,
+                        content: `Hi ${app.student_name || 'there'}! 🎉 Congratulations — we've accepted your application for "${app.gig_title}". We'd love to discuss the next steps with you.`,
+                    }]);
+                } else {
+                    conversationId = existing[0].id;
+                }
+
+                toast.success(`${app.student_name || 'Applicant'} accepted! Chat created in Messages.`);
+            } else {
+                toast.success(`Application ${newStatus}.`);
+            }
+
+            // 3. Refresh applications list
+            setApplications(prev => prev.map(a => a.id === app.id ? { ...a, status: newStatus } : a));
+        } catch (err) {
+            console.error('Status update error:', err);
+            toast.error('Failed to update application: ' + err.message);
+        }
+    };
+
     // Helper functions
     const formatTimeAgo = (dateStr) => {
         if (!dateStr) return '';
@@ -201,6 +258,7 @@ const Dashboard = () => {
                                     <th>Gig</th>
                                     <th>Date</th>
                                     <th>Status</th>
+                                    <th>Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -210,6 +268,29 @@ const Dashboard = () => {
                                         <td>{app.gig_title}</td>
                                         <td>{new Date(app.created_at || app.applied_at).toLocaleDateString()}</td>
                                         <td><span className={`pill ${app.status === 'accepted' ? 'green' : app.status === 'rejected' ? 'red' : 'yellow'}`}>{app.status}</span></td>
+                                        <td>
+                                            {app.status === 'pending' && (
+                                                <div style={{ display: 'flex', gap: '6px' }}>
+                                                    <button
+                                                        className="btn"
+                                                        style={{ padding: '4px 12px', fontSize: '12px' }}
+                                                        onClick={() => handleUpdateApplicationStatus(app, 'accepted')}
+                                                    >
+                                                        ✓ Accept
+                                                    </button>
+                                                    <button
+                                                        className="btn secondary"
+                                                        style={{ padding: '4px 12px', fontSize: '12px' }}
+                                                        onClick={() => handleUpdateApplicationStatus(app, 'rejected')}
+                                                    >
+                                                        ✗ Reject
+                                                    </button>
+                                                </div>
+                                            )}
+                                            {app.status === 'accepted' && (
+                                                <span className="subtle" style={{ fontSize: '12px' }}>💬 Chat created</span>
+                                            )}
+                                        </td>
                                     </tr>
                                 ))}
                             </tbody>

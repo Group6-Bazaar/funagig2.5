@@ -118,23 +118,10 @@ export const AuthProvider = ({ children }) => {
 
         if (error) throw new Error(error.message);
 
-        // Insert into public.users table mapping to the auth.users id
+        // The DB trigger (handle_new_user) automatically inserts into public.users.
+        // We just wait a moment for it to fire, then enrich the session.
         if (data.user) {
-            const { error: dbError } = await supabase.from('users').insert([{
-                id: data.user.id,
-                name: userData.name,
-                email: userData.email,
-                type: userData.role,
-                university: userData.university || null,
-                major: userData.major || null,
-                industry: userData.industry || null
-            }]);
-
-            if (dbError) {
-                console.error('DB Insert Error:', dbError);
-                throw new Error('Account created, but failed to save profile details. ' + dbError.message);
-            }
-            
+            await new Promise(r => setTimeout(r, 800)); // brief wait for trigger
             const fullUser = await enrichUserWithProfile(data.user);
             setUser(fullUser);
             return fullUser;
