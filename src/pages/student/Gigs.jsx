@@ -241,13 +241,37 @@ const Gigs = () => {
                         </div>
                     )}
 
-                    {/* Interested Tab */}
-                    {activeTab === 'interested' && (
-                        <div className="tab-content mt-20" style={{ display: 'block' }}>
-                            <h2>Interested Gigs</h2>
-                            <p className="subtle">Future enhancement: Load interested gigs here.</p>
-                        </div>
-                    )}
+                    {/* Interested Tab — saved gigs not yet applied to */}
+                    {activeTab === 'interested' && (() => {
+                        const appliedGigIds = new Set(applications.map(a => String(a.gig_id)));
+                        const interestedGigs = allGigs.filter(g =>
+                            isGigSaved(g.id) && !appliedGigIds.has(String(g.id))
+                        );
+                        return (
+                            <div className="tab-content mt-20" style={{ display: 'block' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+                                    <h2 style={{ margin: 0 }}>Interested Gigs</h2>
+                                    <span className="pill gray">{interestedGigs.length} gig{interestedGigs.length !== 1 ? 's' : ''}</span>
+                                </div>
+                                <p className="subtle" style={{ marginBottom: '16px', fontSize: '14px' }}>
+                                    Gigs you've saved but haven't applied to yet.
+                                </p>
+                                {interestedGigs.length === 0 ? (
+                                    <div className="section" style={{ textAlign: 'center', padding: '40px' }}>
+                                        <div style={{ fontSize: '40px', marginBottom: '12px' }}>🔖</div>
+                                        <p style={{ fontWeight: '600', marginBottom: '8px' }}>Nothing here yet</p>
+                                        <p className="subtle" style={{ fontSize: '14px' }}>
+                                            Save gigs from the Browse tab to track ones you're interested in. They'll appear here until you apply.
+                                        </p>
+                                    </div>
+                                ) : (
+                                    <div className="card-grid">
+                                        {interestedGigs.map(gig => renderGigCard(gig, 'saved'))}
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })()}
 
                     {/* Applications Tab */}
                     {activeTab === 'applications' && (
