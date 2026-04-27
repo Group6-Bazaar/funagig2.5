@@ -11,11 +11,11 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 -- =====================================================
 
 -- Users table (unified for students and businesses)
--- Note: id references Supabase auth.users to link profiles securely
 CREATE TABLE public.users (
-    id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     name TEXT NOT NULL,
     email TEXT UNIQUE NOT NULL,
+    password_hash TEXT NOT NULL,
     email_verified BOOLEAN DEFAULT FALSE,
     type TEXT NOT NULL CHECK (type IN ('student', 'business')),
     university TEXT NULL,
