@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { supabase } from '../../utils/supabase';
+import { apiClient } from '../../utils/apiClient';
 import toast from '../../utils/toast';
 
 const Messaging = () => {
@@ -22,7 +22,7 @@ const Messaging = () => {
     const loadConversations = async () => {
         if (!user) return;
         try {
-            const { data, error } = await supabase
+            const { data, error } = await apiClient
                 .from('conversation_summary')
                 .select('*')
                 .or(`user1_id.eq.${user.id},user2_id.eq.${user.id}`)
@@ -53,7 +53,7 @@ const Messaging = () => {
         if (!selectedConversation) return;
 
         const loadMessages = async () => {
-            const { data } = await supabase
+            const { data } = await apiClient
                 .from('messages')
                 .select('*, sender:users!messages_sender_id_fkey(name)')
                 .eq('conversation_id', selectedConversation.id)
@@ -67,7 +67,7 @@ const Messaging = () => {
 
         loadMessages();
 
-        const msgSub = supabase
+        const msgSub = apiClient
             .channel(`messages:${selectedConversation.id}`)
             .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `conversation_id=eq.${selectedConversation.id}` },
                 async (payload) => {
@@ -88,12 +88,12 @@ const Messaging = () => {
 
                     // Fetch sender name asynchronously if it wasn't a pending replacement
                     if (newMsg.sender_id !== user.id) {
-                        supabase.from('users').select('name').eq('id', newMsg.sender_id).single().then(({ data }) => {
+                        apiClient.from('users').select('name').eq('id', newMsg.sender_id).single().then(({ data }) => {
                             if (data) {
                                 setMessages(prev => prev.map(m => m.id === newMsg.id ? { ...m, sender_name: data.name } : m));
                             }
                         });
-                        supabase.from('messages').update({ is_read: true }).eq('id', newMsg.id).then();
+                        apiClient.from('messages').update({ is_read: true }).eq('id', newMsg.id).then();
                     }
 
                     scrollToBottom();
@@ -101,7 +101,7 @@ const Messaging = () => {
                 })
             .subscribe();
 
-        const typingCh = supabase.channel(`typing:${selectedConversation.id}`)
+        const typingCh = apiClient.channel(`typing:${selectedConversation.id}`)
             .on('broadcast', { event: 'typing' }, payload => {
                 if (payload.user_id !== user.id) setIsTyping(payload.isTyping);
             })
@@ -146,7 +146,7 @@ const Messaging = () => {
 
         try {
             // timeout wrapper to prevent infinite hang
-            const insertPromise = supabase.from('messages').insert([{
+            const insertPromise = apiClient.from('messages').insert([{
                 conversation_id: selectedConversation.id,
                 sender_id: user.id,
                 content: tempMsgContent,
@@ -163,7 +163,7 @@ const Messaging = () => {
                 setMessages(prev => prev.map(m => m.id === tempId ? { ...data[0], sender_name: user.name } : m));
             }
             
-            supabase.from('conversations').update({ last_message_at: new Date().toISOString() }).eq('id', selectedConversation.id).then();
+            apiClient.from('conversations').update({ last_message_at: new Date().toISOString() }).eq('id', selectedConversation.id).then();
         } catch (error) { 
             console.error('Send message error:', error);
             // Remove optimistic message on failure
@@ -176,7 +176,7 @@ const Messaging = () => {
     const handleTyping = (e) => {
         setMessageInput(e.target.value);
         if (!selectedConversation) return;
-        const ch = supabase.channel(`typing:${selectedConversation.id}`);
+        const ch = apiClient.channel(`typing:${selectedConversation.id}`);
         ch.send({ type: 'broadcast', event: 'typing', payload: { user_id: user.id, isTyping: true } });
         if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
         typingTimeoutRef.current = setTimeout(() => {

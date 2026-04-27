@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { supabase } from '../utils/supabase';
+import { apiClient } from '../utils/apiClient';
 import toast from '../utils/toast';
 
 const Home = () => {
@@ -18,7 +18,7 @@ const Home = () => {
 
         try {
             setIsSubmitting(true);
-            const { error } = await supabase.from('contacts').insert([contactForm]);
+            const { error } = await apiClient.from('contacts').insert([contactForm]);
             
             // Assume success even if contacts table doesn't exist to keep demo working
             toast.success("Message sent successfully! We'll get back to you soon.");

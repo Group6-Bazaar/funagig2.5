@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { supabase } from '../../utils/supabase';
+import { apiClient } from '../../utils/apiClient';
 import toast from '../../utils/toast';
 
 const ForgotPassword = () => {
@@ -18,7 +18,7 @@ const ForgotPassword = () => {
 
         try {
             setIsSubmitting(true);
-            const { error } = await supabase.auth.resetPasswordForEmail(email, {
+            const { error } = await apiClient.auth.resetPasswordForEmail(email, {
                 redirectTo: `${window.location.origin}/reset-password`,
             });
             

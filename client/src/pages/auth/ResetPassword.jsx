@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { supabase } from '../../utils/supabase';
+import { apiClient } from '../../utils/apiClient';
 import toast from '../../utils/toast';
 
 const ResetPassword = () => {
@@ -22,7 +22,7 @@ const ResetPassword = () => {
     const handleSubmit = async (e) => {
         e.preventDefault();
         
-        // Supabase handles token automatically through hash fragment
+        // ApiClient handles token automatically through hash fragment
         // We just need to check if user has a session ready (which they will if they clicked the email link)
         if (password.length < 6) {
             toast.error('Password must be at least 6 characters');
@@ -35,7 +35,7 @@ const ResetPassword = () => {
 
         try {
             setIsSubmitting(true);
-            const { error } = await supabase.auth.updateUser({
+            const { error } = await apiClient.auth.updateUser({
                 password: password
             });
             
@@ -58,7 +58,7 @@ const ResetPassword = () => {
                 <h1 className="h1" style={{ fontSize: '32px', textAlign: 'center' }}>Reset Password</h1>
                 <p className="subtle mb-10" style={{ textAlign: 'center' }}>Enter your new password below</p>
                 
-                {/* Token input removed, Supabase handles it in hash */}
+                {/* Token input removed, ApiClient handles it in hash */}
                 
                 <div className="field">
                     <label className="label">New Password *</label>

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
-import { supabase } from '../../utils/supabase';
+import { apiClient } from '../../utils/apiClient';
 import { useAuth } from '../../context/AuthContext';
 import toast from '../../utils/toast';
 
@@ -30,7 +30,7 @@ const Gigs = () => {
         setLoading(true);
         try {
             // Fetch active gigs
-            const { data: gigsData } = await supabase
+            const { data: gigsData } = await apiClient
                 .from('active_gigs')
                 .select('*')
                 .order('created_at', { ascending: false });
@@ -38,7 +38,7 @@ const Gigs = () => {
             if (gigsData) setAllGigs(gigsData);
 
             // Fetch saved gigs
-            const { data: savedData } = await supabase
+            const { data: savedData } = await apiClient
                 .from('saved_gigs')
                 .select('gig_id')
                 .eq('user_id', user.id);
@@ -46,7 +46,7 @@ const Gigs = () => {
             if (savedData) setSavedGigs(savedData.map(s => s.gig_id));
 
             // Fetch applications
-            const { data: appsData } = await supabase
+            const { data: appsData } = await apiClient
                 .from('application_details')
                 .select('*')
                 .eq('user_id', user.id);
@@ -70,7 +70,7 @@ const Gigs = () => {
         
         try {
             if (isSaved) {
-                const { error } = await supabase
+                const { error } = await apiClient
                     .from('saved_gigs')
                     .delete()
                     .eq('user_id', user.id)
@@ -79,7 +79,7 @@ const Gigs = () => {
                 setSavedGigs(savedGigs.filter(id => id !== gigId));
                 toast.success('Gig removed from saved');
             } else {
-                const { error } = await supabase
+                const { error } = await apiClient
                     .from('saved_gigs')
                     .insert([{ user_id: user.id, gig_id: gigId }]);
                 if (error) throw error;
@@ -102,7 +102,7 @@ const Gigs = () => {
         if (!message) return;
 
         try {
-            const { error } = await supabase
+            const { error } = await apiClient
                 .from('applications')
                 .insert([{
                     user_id: user.id,

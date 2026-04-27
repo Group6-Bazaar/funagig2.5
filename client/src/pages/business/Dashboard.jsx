@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { supabase } from '../../utils/supabase';
+import { apiClient } from '../../utils/apiClient';
 import { useAuth } from '../../context/AuthContext';
 import toast from '../../utils/toast';
 
@@ -24,13 +24,13 @@ const Dashboard = () => {
         setLoading(true);
         try {
             // Fetch applications to business's gigs
-            const { data: appsRes } = await supabase
+            const { data: appsRes } = await apiClient
                 .from('application_details')
                 .select('*')
                 .eq('business_id', user.id) // wait, the view has business_name. The view lacks business_id. Let's filter by gig's user_id in DB or rewrite.
                 // Actually, let's fetch gigs first
                 
-            const { data: myGigs } = await supabase
+            const { data: myGigs } = await apiClient
                 .from('gigs')
                 .select('*')
                 .eq('user_id', user.id)
@@ -47,7 +47,7 @@ const Dashboard = () => {
             let totalApplicants = 0;
             let hiredStudents = 0;
             if (myGigIds.length > 0) {
-                const { data: apps } = await supabase
+                const { data: apps } = await apiClient
                     .from('application_details')
                     .select('*')
                     .in('gig_id', myGigIds)
@@ -65,7 +65,7 @@ const Dashboard = () => {
                 }
             }
 
-            const { data: notifs } = await supabase
+            const { data: notifs } = await apiClient
                 .from('notifications')
                 .select('*')
                 .eq('user_id', user.id)
@@ -95,7 +95,7 @@ const Dashboard = () => {
 
     const handleMarkAllRead = async () => {
         try {
-            const { error } = await supabase
+            const { error } = await apiClient
                 .from('notifications')
                 .update({ is_read: true })
                 .eq('user_id', user.id)
@@ -113,7 +113,7 @@ const Dashboard = () => {
     const handleUpdateApplicationStatus = async (app, newStatus) => {
         try {
             // 1. Update the application status
-            const { error } = await supabase
+            const { error } = await apiClient
                 .from('applications')
                 .update({ status: newStatus })
                 .eq('id', app.id);
@@ -123,7 +123,7 @@ const Dashboard = () => {
             // 2. If accepted → auto-create a conversation between business and student
             if (newStatus === 'accepted') {
                 // Check if a conversation already exists between these two users
-                const { data: existing } = await supabase
+                const { data: existing } = await apiClient
                     .from('conversations')
                     .select('id')
                     .or(
@@ -134,7 +134,7 @@ const Dashboard = () => {
                 let conversationId;
                 if (!existing || existing.length === 0) {
                     // Create a new conversation
-                    const { data: newConv, error: convErr } = await supabase
+                    const { data: newConv, error: convErr } = await apiClient
                         .from('conversations')
                         .insert([{ user1_id: user.id, user2_id: app.user_id }])
                         .select('id')
@@ -144,7 +144,7 @@ const Dashboard = () => {
                     conversationId = newConv.id;
 
                     // Send an automatic first message from the business
-                    await supabase.from('messages').insert([{
+                    await apiClient.from('messages').insert([{
                         conversation_id: conversationId,
                         sender_id: user.id,
                         content: `Hi ${app.student_name || 'there'}! 🎉 Congratulations — we've accepted your application for "${app.gig_title}". We'd love to discuss the next steps with you.`,

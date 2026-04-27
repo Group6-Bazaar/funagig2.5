@@ -1,5 +1,5 @@
 -- =====================================================
--- FunaGig Database Schema for Supabase (PostgreSQL)
+-- FunaGig Database Schema (PostgreSQL)
 -- Fully rewritten from MySQL to modern Postgres syntax
 -- =====================================================
 

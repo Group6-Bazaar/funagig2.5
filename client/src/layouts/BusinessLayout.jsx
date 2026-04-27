@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { supabase } from '../utils/supabase';
+import { apiClient } from '../utils/apiClient';
 import ThemeToggle from '../components/ThemeToggle';
 
 const BusinessLayout = () => {
@@ -13,7 +13,7 @@ const BusinessLayout = () => {
         if (!user) return;
         const fetchNotifications = async () => {
             try {
-                const { count, error } = await supabase
+                const { count, error } = await apiClient
                     .from('messages')
                     .select('*', { count: 'exact', head: true })
                     .eq('receiver_id', user.id)

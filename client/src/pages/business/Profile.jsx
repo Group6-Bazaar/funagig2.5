@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { supabase } from '../../utils/supabase';
+import { apiClient } from '../../utils/apiClient';
 import toast from '../../utils/toast';
 
 const Profile = () => {
@@ -37,8 +37,8 @@ const Profile = () => {
         if (!user) return;
         setLoading(true);
         try {
-            // Fetch stats from Supabase
-            const { count: activeGigsCount } = await supabase
+            // Fetch stats from ApiClient
+            const { count: activeGigsCount } = await apiClient
                 .from('gigs')
                 .select('*', { count: 'exact', head: true })
                 .eq('user_id', user.id)
@@ -46,19 +46,19 @@ const Profile = () => {
 
             // Quick hack to get application counts
             // In a real app we'd do a join via `gigs`, but this is sufficient for now
-            const { data: gigsData } = await supabase.from('gigs').select('id').eq('user_id', user.id);
+            const { data: gigsData } = await apiClient.from('gigs').select('id').eq('user_id', user.id);
             let totalApps = 0;
             let totalHired = 0;
 
             if (gigsData && gigsData.length > 0) {
                 const gigIds = gigsData.map(g => g.id);
-                const { count: appsCount } = await supabase
+                const { count: appsCount } = await apiClient
                     .from('applications')
                     .select('*', { count: 'exact', head: true })
                     .in('gig_id', gigIds);
                 totalApps = appsCount || 0;
 
-                const { count: hiredCount } = await supabase
+                const { count: hiredCount } = await apiClient
                     .from('applications')
                     .select('*', { count: 'exact', head: true })
                     .in('gig_id', gigIds)
@@ -73,7 +73,7 @@ const Profile = () => {
                 avg_rating: 0
             });
 
-            const { data: reviewsData } = await supabase
+            const { data: reviewsData } = await apiClient
                 .from('reviews')
                 .select('*')
                 .eq('reviewee_id', user.id);
@@ -100,7 +100,7 @@ const Profile = () => {
     const handleSaveProfile = async (e) => {
         e.preventDefault();
         try {
-            const { error: updateError } = await supabase
+            const { error: updateError } = await apiClient
                 .from('users')
                 .update(editForm)
                 .eq('id', user.id);
@@ -132,17 +132,17 @@ const Profile = () => {
             const fileName = `${user.id}-${Math.random()}.${fileExt}`;
             const filePath = `profile-pictures/${fileName}`;
 
-            const { error: uploadError } = await supabase.storage
+            const { error: uploadError } = await apiClient.storage
                 .from('avatars')
                 .upload(filePath, file);
 
             if (uploadError) throw uploadError;
 
-            const { data: { publicUrl } } = supabase.storage
+            const { data: { publicUrl } } = apiClient.storage
                 .from('avatars')
                 .getPublicUrl(filePath);
 
-            const { error: updateError } = await supabase
+            const { error: updateError } = await apiClient
                 .from('users')
                 .update({ profile_image: publicUrl })
                 .eq('id', user.id);
@@ -172,7 +172,7 @@ const Profile = () => {
     const handleRemovePhoto = async () => {
         setIsUploadingPhoto(true);
         try {
-            const { error: updateError } = await supabase
+            const { error: updateError } = await apiClient
                 .from('users')
                 .update({ profile_image: null })
                 .eq('id', user.id);

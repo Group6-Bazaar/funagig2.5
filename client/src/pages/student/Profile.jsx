@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { supabase } from '../../utils/supabase';
+import { apiClient } from '../../utils/apiClient';
 import toast from '../../utils/toast';
 
 const Profile = () => {
@@ -46,7 +46,7 @@ const Profile = () => {
                 });
 
                 // Fetch real profile from DB in case it diverged
-                const { data: dbUser, error: dbErr } = await supabase.from('users').select('*').eq('id', user.id).single();
+                const { data: dbUser, error: dbErr } = await apiClient.from('users').select('*').eq('id', user.id).single();
                 if (dbErr) {
                     console.warn('Profile DB fetch failed (check RLS policies):', dbErr.message);
                 }
@@ -56,7 +56,7 @@ const Profile = () => {
                 }
 
                 // Fetch applications
-                const { data: appsData } = await supabase
+                const { data: appsData } = await apiClient
                     .from('application_details')
                     .select('*')
                     .eq('user_id', user.id)
@@ -68,7 +68,7 @@ const Profile = () => {
                 }
 
                 // Fetch reviews
-                const { data: reviewsData } = await supabase
+                const { data: reviewsData } = await apiClient
                     .from('reviews')
                     .select('*')
                     .eq('reviewee_id', user.id);
@@ -107,7 +107,7 @@ const Profile = () => {
                 if (profileForm[col] !== undefined) payload[col] = profileForm[col];
             });
 
-            const { error } = await supabase
+            const { error } = await apiClient
                 .from('users')
                 .update(payload)
                 .eq('id', user.id);
@@ -119,7 +119,7 @@ const Profile = () => {
                 // A column doesn't exist - try updating only core columns
                 console.warn('Some columns missing in DB, retrying with core fields:', error.message);
                 const corePayload = { name: profileForm.name, phone: profileForm.phone || null };
-                const { error: coreErr } = await supabase
+                const { error: coreErr } = await apiClient
                     .from('users').update(corePayload).eq('id', user.id);
                 if (!coreErr) {
                     toast.success('Basic profile saved! Run the DB migration to save all fields.');
@@ -155,20 +155,20 @@ const Profile = () => {
             const fileName = `${user.id}-${Math.random()}.${fileExt}`;
             const filePath = `profile-pictures/${fileName}`;
 
-            // Upload the file to Supabase storage
-            const { error: uploadError } = await supabase.storage
+            // Upload the file to ApiClient storage
+            const { error: uploadError } = await apiClient.storage
                 .from('avatars')
                 .upload(filePath, file);
 
             if (uploadError) throw uploadError;
 
             // Get public URL
-            const { data: { publicUrl } } = supabase.storage
+            const { data: { publicUrl } } = apiClient.storage
                 .from('avatars')
                 .getPublicUrl(filePath);
 
             // Update user profile with new URL
-            const { error: updateError } = await supabase
+            const { error: updateError } = await apiClient
                 .from('users')
                 .update({ profile_image: publicUrl })
                 .eq('id', user.id);
@@ -189,7 +189,7 @@ const Profile = () => {
     const handleRemovePhoto = async () => {
         setIsUploadingPhoto(true);
         try {
-            const { error: updateError } = await supabase
+            const { error: updateError } = await apiClient
                 .from('users')
                 .update({ profile_image: null })
                 .eq('id', user.id);

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { supabase } from '../../utils/supabase';
+import { apiClient } from '../../utils/apiClient';
 import toast from '../../utils/toast';
 
 const Dashboard = () => {
@@ -22,7 +22,7 @@ const Dashboard = () => {
             if (!user) return;
             try {
                 // Fetch applications details using the view
-                const { data: apps } = await supabase
+                const { data: apps } = await apiClient
                     .from('application_details')
                     .select('*')
                     .eq('user_id', user.id)
@@ -32,7 +32,7 @@ const Dashboard = () => {
                 if (apps) setApplications(apps);
 
                 // Fetch notifications
-                const { data: notifs } = await supabase
+                const { data: notifs } = await apiClient
                     .from('notifications')
                     .select('*')
                     .eq('user_id', user.id)
@@ -42,7 +42,7 @@ const Dashboard = () => {
                 if (notifs) setNotifications(notifs);
 
                 // Fetch stats from applications
-                const { data: allApps } = await supabase
+                const { data: allApps } = await apiClient
                     .from('application_details')
                     .select('status, budget');
 
@@ -93,7 +93,7 @@ const Dashboard = () => {
 
     const markAllRead = async () => {
         try {
-            await supabase
+            await apiClient
                 .from('notifications')
                 .update({ is_read: true })
                 .eq('user_id', user.id)

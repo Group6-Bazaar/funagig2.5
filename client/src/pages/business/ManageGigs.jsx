@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import toast from '../../utils/toast';
-import { supabase } from '../../utils/supabase';
+import { apiClient } from '../../utils/apiClient';
 import { useAuth } from '../../context/AuthContext';
 
 const ManageGigs = () => {
@@ -21,7 +21,7 @@ const ManageGigs = () => {
         if (!user) return;
         setLoading(true);
         try {
-            const { data, error } = await supabase
+            const { data, error } = await apiClient
                 .from('gigs')
                 .select('*')
                 .eq('user_id', user.id)
@@ -92,7 +92,7 @@ const ManageGigs = () => {
                 ...editForm,
                 budget: parseFloat(editForm.budget)
             };
-            const { error } = await supabase
+            const { error } = await apiClient
                 .from('gigs')
                 .update(payload)
                 .eq('id', editGigId);
@@ -112,7 +112,7 @@ const ManageGigs = () => {
     const deleteGig = async (id, title) => {
         if (!window.confirm(`Are you sure you want to delete "${title}"?`)) return;
         try {
-            const { error } = await supabase
+            const { error } = await apiClient
                 .from('gigs')
                 .delete()
                 .eq('id', id);
@@ -149,7 +149,7 @@ const ManageGigs = () => {
                 location: draft.location,
                 status: 'active'
             };
-            const { error } = await supabase
+            const { error } = await apiClient
                 .from('gigs')
                 .update(payload)
                 .eq('id', id);

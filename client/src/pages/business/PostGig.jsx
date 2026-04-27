@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import toast from '../../utils/toast';
-import { supabase } from '../../utils/supabase';
+import { apiClient } from '../../utils/apiClient';
 
 const PostGig = () => {
     const navigate = useNavigate();
@@ -51,7 +51,7 @@ const PostGig = () => {
 
         setIsSubmitting(true);
         try {
-            const { error: dbError } = await supabase
+            const { error: dbError } = await apiClient
                 .from('gigs')
                 .insert([{
                     user_id: user.id,
@@ -88,7 +88,7 @@ const PostGig = () => {
                 status: 'draft'
             };
 
-            const { error: dbError } = await supabase
+            const { error: dbError } = await apiClient
                 .from('gigs')
                 .insert([draftData]);
 

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { supabase } from '../../utils/supabase';
+import { apiClient } from '../../utils/apiClient';
 import { useAuth } from '../../context/AuthContext';
 import toast from '../../utils/toast';
 
@@ -34,7 +34,7 @@ const Applicants = () => {
         if (!user) return;
         setLoading(true);
         try {
-            const { data: gigsData, error: gigsError } = await supabase
+            const { data: gigsData, error: gigsError } = await apiClient
                 .from('gigs')
                 .select('*')
                 .eq('user_id', user.id)
@@ -49,7 +49,7 @@ const Applicants = () => {
             }
 
             if (gigIds.length > 0) {
-                const { data: appsData, error: appsError } = await supabase
+                const { data: appsData, error: appsError } = await apiClient
                     .from('application_details')
                     .select('*')
                     .in('gig_id', gigIds)
@@ -110,7 +110,7 @@ const Applicants = () => {
 
         try {
             const newStatus = action === 'accept' ? 'accepted' : 'rejected';
-            const { error } = await supabase
+            const { error } = await apiClient
                 .from('applications')
                 .update({ status: newStatus })
                 .eq('id', applicantId);
@@ -123,14 +123,14 @@ const Applicants = () => {
             
             if (action === 'accept' && studentId) {
                 // Check if conversation exists, if not, create one
-                const { data: convData } = await supabase
+                const { data: convData } = await apiClient
                     .from('conversations')
                     .select('*')
                     .or(`user1_id.eq.${user.id},user1_id.eq.${studentId}`)
                     .or(`user2_id.eq.${user.id},user2_id.eq.${studentId}`);
                     
                 if (!convData || convData.length === 0) {
-                    await supabase.from('conversations').insert([{
+                    await apiClient.from('conversations').insert([{
                         user1_id: user.id,
                         user2_id: studentId
                     }]);
@@ -146,7 +146,7 @@ const Applicants = () => {
         setShowStudentModal(true);
         setModalLoading(true);
         try {
-            const { data, error } = await supabase
+            const { data, error } = await apiClient
                 .from('users')
                 .select('*')
                 .eq('id', applicant.user_id)
@@ -163,13 +163,13 @@ const Applicants = () => {
 
     const handleMessage = async (studentId) => {
         try {
-            const { data: convData } = await supabase
+            const { data: convData } = await apiClient
                 .from('conversations')
                 .select('*')
                 .or(`and(user1_id.eq.${user.id},user2_id.eq.${studentId}),and(user1_id.eq.${studentId},user2_id.eq.${user.id})`);
                 
             if (!convData || convData.length === 0) {
-                await supabase.from('conversations').insert([{
+                await apiClient.from('conversations').insert([{
                     user1_id: user.id,
                     user2_id: studentId
                 }]);

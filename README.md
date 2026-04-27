@@ -1,14 +1,14 @@
 # FunaGig v2.5 - Modern Student-Business Gig Marketplace
 
-**Status:** ✅ Production-Ready | **Version:** 2.5 | **Architecture:** React + Vite + Supabase
+**Status:** ✅ Production-Ready | **Version:** 2.5 | **Architecture:** React + Express + PostgreSQL
 
-FunaGig is a modern gig marketplace platform connecting students with businesses for short-term work opportunities. It enables students to find flexible gigs and allows businesses to hire talented students securely. Version 2.5 represents a complete architectural overhaul from a legacy PHP/Node.js stack to a modern **Serverless React application powered by Supabase**.
+FunaGig is a modern gig marketplace platform connecting students with businesses for short-term work opportunities. It enables students to find flexible gigs and allows businesses to hire talented students securely. Version 2.5 represents a complete architectural overhaul to a robust **React Single Page Application backed by a custom Node.js Express REST API**.
 
 ---
 
 ## 🎯 Core Features
 
-- **Role-Based Authentication:** Secure Login and Signup for both Students and Businesses.
+- **Role-Based Authentication:** Secure JWT-based Login and Signup for both Students and Businesses.
 - **Gig Management:** Businesses can post, edit, pause, and delete gigs.
 - **Application System:** Students can apply to gigs. Businesses can review, accept, or reject applications.
 - **Real-Time Messaging (Instagram-style):** Instant WebSocket-based chat between businesses and students, featuring typing indicators, read receipts, and bubble UI.
@@ -17,18 +17,15 @@ FunaGig is a modern gig marketplace platform connecting students with businesses
 
 ---
 
-## 🏗️ How the Backend is Handled (The Supabase Magic)
+## 🏗️ How the Backend is Handled
 
-Unlike traditional applications that require a custom backend server (like Node.js + Express or PHP), **FunaGig v2.5 is completely serverless.** It uses **Supabase** as a fully managed Backend-as-a-Service (BaaS). 
+FunaGig v2.5 utilizes a custom built 5-tier layered architecture for high performance and maintainability:
 
-Here is how the backend logic is handled without writing a custom server:
-
-1. **Database (PostgreSQL):** All data (users, gigs, applications, conversations) is stored in a remote PostgreSQL database hosted on Supabase.
-2. **Authentication (GoTrue):** User signups, logins, and session management are handled by Supabase Auth. A secure PostgreSQL Trigger automatically creates a public profile row in the `users` table the moment an account is registered.
-3. **Direct Client-to-Database Communication:** The React frontend uses the `@supabase/supabase-js` library to query the database directly using PostgREST. No middleware APIs are needed.
-4. **Security via RLS:** Because the frontend queries the database directly, security is handled via **Row Level Security (RLS)** in PostgreSQL. Strict policies dictate exactly what each user can `SELECT`, `INSERT`, or `UPDATE` mapping to their `auth.uid()`.
-5. **Real-Time Data:** The Messaging system uses Supabase Realtime (WebSockets) to subscribe to `postgres_changes`. When a message is inserted into the database, it is instantly pushed to the recipient's React app.
-6. **File Storage:** Attachments and Profile Pictures are uploaded directly from the browser to Supabase Storage Buckets.
+1. **Database (PostgreSQL):** All data (users, gigs, applications, conversations) is stored in a robust relational PostgreSQL database.
+2. **Authentication:** User signups, logins, and session management are handled by the backend Express server, which encrypts passwords using `bcryptjs` and orchestrates stateless sessions via JSON Web Tokens (JWT).
+3. **RESTful API:** The React frontend securely communicates with the backend via a standardized JSON REST API utilizing `fetch`.
+4. **Real-Time Data:** The Messaging system uses native WebSockets. When a message is sent to the API, it is processed via a Pub/Sub broker and pushed instantly over the active WebSocket connections to the recipient's React app.
+5. **Separation of Concerns:** The application cleanly separates the `client/` (React SPA) from the `server/` (Node/Express API), allowing for independent scaling and deployment.
 
 ---
 
@@ -36,23 +33,27 @@ Here is how the backend logic is handled without writing a custom server:
 
 ```text
 funagig2.5/
-├── src/
-│   ├── components/            # Reusable UI elements (Avatar, Navbar, Sidebar)
-│   ├── context/               # React Contexts (AuthContext for global session state)
-│   ├── layouts/               # Layout wrappers (StudentLayout, BusinessLayout)
-│   ├── pages/
-│   │   ├── auth/              # Login, Signup, ForgotPassword
-│   │   ├── student/           # Student interfaces (Dashboard, Gigs, Messaging)
-│   │   └── business/          # Business interfaces (Dashboard, ManageGigs, Messaging)
-│   ├── utils/
-│   │   └── supabase.js        # Supabase client initialization
-│   ├── App.jsx                # Core application routing
-│   ├── index.css              # Reset and utility classes
-│   └── modern-theme.css       # The core Design System and Dark Mode styling
-├── database.sql               # Complete PostgreSQL schema and views
-├── index.html                 # Vite entry point
-├── package.json               # NPM dependencies
-└── vite.config.js             # Vite configuration
+├── client/                    # React Frontend
+│   ├── src/
+│   │   ├── components/        # Reusable UI elements
+│   │   ├── services/          # API fetch wrappers (gigService, authService)
+│   │   ├── state/             # Global state hooks (useAppState)
+│   │   ├── pages/             # Route views
+│   │   └── utils/             # Helper functions
+│   ├── index.html             # Vite entry point
+│   └── vite.config.js         # Vite configuration
+├── server/                    # Express Backend
+│   ├── src/
+│   │   ├── controllers/       # Route request handlers
+│   │   ├── middleware/        # JWT & Validator guards
+│   │   ├── repositories/      # Database queries
+│   │   ├── routes/            # Express router definitions
+│   │   ├── sockets/           # WebSocket real-time broker
+│   │   ├── app.js             # Express app instantiation
+│   │   └── index.js           # Server entry point
+│   └── db/                    # PostgreSQL connection pool
+├── database.sql               # Complete PostgreSQL schema
+└── package.json               # Root dependencies for running both concurrently
 ```
 
 ---
@@ -62,33 +63,37 @@ funagig2.5/
 To run this project locally:
 
 1. **Install Dependencies:**
+   Run this in the root folder to install dependencies for both the frontend and backend:
    ```bash
    npm install
    ```
 
 2. **Environment Variables:**
-   Create a `.env` file in the root directory and add your Supabase project credentials:
+   Navigate into the `server/` directory, copy `.env.example` to `.env`, and configure your PostgreSQL database URL and JWT secret:
    ```env
-   VITE_SUPABASE_URL=your_supabase_project_url
-   VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+   DATABASE_URL=postgresql://postgres:password@localhost:5432/funagig
+   JWT_SECRET=your_super_secret_key_here
+   CLIENT_ORIGIN=http://localhost:5173
    ```
 
-3. **Start the Development Server:**
+3. **Start the Development Servers:**
+   From the **root folder**, run:
    ```bash
    npm run dev
    ```
+   This will use `concurrently` to automatically start both the Express backend on Port 5000 and the Vite React frontend on Port 5173.
 
 ---
 
 ## ☁️ Deployment Guide
 
-Because FunaGig uses a BaaS architecture, deploying to production is incredibly simple:
+Because FunaGig is separated into a frontend and backend, you will deploy them independently:
 
-1. **Deploy the Frontend:**
-   - Push your code to GitHub.
-   - Connect your repository to a static hosting provider like **Vercel** or **Netlify**.
-   - Add the `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` to the Environment Variables settings in the Vercel/Netlify dashboard.
-   - Deploy! Vercel/Netlify will build the React app and host the static files globally.
+1. **Deploy the Frontend (React):**
+   - Connect your `client/` directory to a static hosting provider like **Vercel** or **Netlify**.
+   - Add the `VITE_API_URL` environment variable pointing to your deployed backend URL.
 
-2. **The Backend is Already Live:**
-   - Since Supabase is a cloud-hosted database, your backend is already deployed. The live frontend will securely connect to it. No database provisioning or server maintenance is required.
+2. **Deploy the Backend (Express & PostgreSQL):**
+   - Deploy your PostgreSQL database to a provider like **Neon**, **Render**, or **AWS RDS**.
+   - Deploy your `server/` directory to a Node.js hosting platform like **Render**, **Railway**, or **DigitalOcean App Platform**.
+   - Configure the production environment variables (`DATABASE_URL`, `JWT_SECRET`, `CLIENT_ORIGIN`) on your hosting platform.
