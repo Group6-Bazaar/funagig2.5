@@ -76,7 +76,10 @@ To run this project locally:
    CLIENT_ORIGIN=http://localhost:5173
    ```
 
-3. **Start the Development Servers:**
+3. **Initialize the Database:**
+   Run the `database.sql` script located in the root folder against your local PostgreSQL database to generate the tables (`users`, `gigs`, `applications`, etc.) required by the application.
+
+4. **Start the Development Servers:**
    From the **root folder**, run:
    ```bash
    npm run dev
