@@ -17,15 +17,27 @@ FunaGig is a modern gig marketplace platform connecting students with businesses
 
 ---
 
-## 🏗️ How the Backend is Handled
+## 🏗️ System Architecture
 
-FunaGig v2.5 utilizes a custom built 5-tier layered architecture for high performance and maintainability:
+FunaGig utilizes a 5-tier layered architecture for high performance, maintainability, and clear separation of concerns.
 
-1. **Database (PostgreSQL):** All data (users, gigs, applications, conversations) is stored in a robust relational PostgreSQL database.
-2. **Authentication:** User signups, logins, and session management are handled by the backend Express server, which encrypts passwords using `bcryptjs` and orchestrates stateless sessions via JSON Web Tokens (JWT).
-3. **RESTful API:** The React frontend securely communicates with the backend via a standardized JSON REST API utilizing `fetch`.
-4. **Real-Time Data:** The Messaging system uses native WebSockets. When a message is sent to the API, it is processed via a Pub/Sub broker and pushed instantly over the active WebSocket connections to the recipient's React app.
-5. **Separation of Concerns:** The application cleanly separates the `client/` (React SPA) from the `server/` (Node/Express API), allowing for independent scaling and deployment.
+### 1. The 4+1 View Model
+The system architecture is designed across five complementary perspectives:
+- **Logical View:** Functional decomposition into modules: React Presentation → useAppState → Service Layer → Express API → Repository → PostgreSQL.
+- **Process View:** Handles runtime behavior including HTTP REST request-response cycles and real-time WSS WebSocket messaging flow.
+- **Development View:** Organizes the codebase into `client/` (Frontend) and `server/` (Backend) with strict internal layering.
+- **Physical View:** Deployment topology supporting local development, offline usage, and cloud hosting (Vercel/Render/AWS).
+- **+1 (Scenarios):** Validates the architecture through core user journeys like gig applications and real-time chat.
+
+### 2. Layered Architecture (5-Tier)
+1. **Presentation Layer (React):** Renders the UI and translates user actions into state changes.
+2. **State Module (useAppState):** The single source of truth for client-side state, managing optimistic updates and async workflows.
+3. **Service Layer (Client):** Abstracts HTTP/WS communication; each service issues `fetch()` calls to the REST API.
+4. **API Layer (Express):** Handles routing, JWT-based authentication, request validation, and business logic.
+5. **Data Access Layer (Repositories):** Manages parameterized SQL queries, ensuring the API is decoupled from the database schema.
+
+### 3. Interaction Narrative
+The application follows a unidirectional dependency chain. A change to the PostgreSQL schema requires changes only in the Repository layer, never in the React components. The Express API can be refactored independently provided the REST contract is preserved.
 
 ---
 
@@ -58,45 +70,54 @@ funagig2.5/
 
 ---
 
-## 🚀 Local Development Setup
+## 🚀 Local & Offline Development Setup
 
-To run this project locally:
+FunaGig can be run entirely offline on a local machine with a local PostgreSQL instance.
 
-1. **Install Dependencies:**
-   Run this in the root folder to install dependencies for both the frontend and backend:
+### 1. Prerequisites
+- **Node.js** (v18 or higher)
+- **PostgreSQL** (installed and running locally)
+- **npm** (comes with Node.js)
+
+### 2. Install Dependencies
+Run the following in the root folder to install all dependencies for the workspace:
+```bash
+npm install
+npm run install:all
+```
+
+### 3. Database Initialization (Offline)
+1. Open your terminal and log into your local PostgreSQL: `psql -U postgres`
+2. Create the database: `CREATE DATABASE funagig;`
+3. Import the schema from the root folder:
    ```bash
-   npm install
+   psql -U postgres -d funagig -f database.sql
    ```
 
-2. **Environment Variables:**
-   Navigate into the `server/` directory, copy `.env.example` to `.env`, and configure your PostgreSQL database URL and JWT secret:
-   ```env
-   DATABASE_URL=postgresql://postgres:password@localhost:5432/funagig
-   JWT_SECRET=your_super_secret_key_here
-   CLIENT_ORIGIN=http://localhost:5173
-   ```
+### 4. Environment Variables
+Navigate to the `server/` directory and create a `.env` file:
+```env
+DATABASE_URL=postgresql://postgres:yourpassword@localhost:5432/funagig
+JWT_SECRET=your_super_secret_key_here
+CLIENT_ORIGIN=http://localhost:5173
+PORT=5000
+```
+*Note: Replace `postgres` and `yourpassword` with your local DB credentials.*
 
-3. **Initialize the Database:**
-   Run the `database.sql` script located in the root folder against your local PostgreSQL database to generate the tables (`users`, `gigs`, `applications`, etc.) required by the application.
-
-4. **Start the Development Servers:**
-   From the **root folder**, run:
-   ```bash
-   npm run dev
-   ```
-   This will use `concurrently` to automatically start both the Express backend on Port 5000 and the Vite React frontend on Port 5173.
+### 5. Start Development Servers
+From the **root folder**, run:
+```bash
+npm run dev
+```
+- **Frontend:** http://localhost:5173
+- **Backend API:** http://localhost:5000
 
 ---
 
 ## ☁️ Deployment Guide
 
-Because FunaGig is separated into a frontend and backend, you will deploy them independently:
+FunaGig is designed to be deployed independently for maximum scalability:
 
-1. **Deploy the Frontend (React):**
-   - Connect your `client/` directory to a static hosting provider like **Vercel** or **Netlify**.
-   - Add the `VITE_API_URL` environment variable pointing to your deployed backend URL.
-
-2. **Deploy the Backend (Express & PostgreSQL):**
-   - Deploy your PostgreSQL database to a provider like **Neon**, **Render**, or **AWS RDS**.
-   - Deploy your `server/` directory to a Node.js hosting platform like **Render**, **Railway**, or **DigitalOcean App Platform**.
-   - Configure the production environment variables (`DATABASE_URL`, `JWT_SECRET`, `CLIENT_ORIGIN`) on your hosting platform.
+1. **Frontend (React):** Deploy `client/` to **Vercel**, **Netlify**, or **AWS S3+CloudFront**.
+2. **Backend (Express):** Deploy `server/` to **Render**, **Railway**, or **AWS EC2/ECS**.
+3. **Database:** Deploy PostgreSQL to **Neon**, **Railway**, or **AWS RDS**.
