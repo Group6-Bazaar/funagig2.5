@@ -18,17 +18,31 @@ app.use(cors({
 app.use(express.json());
 app.use(morgan('dev'));
 
+// Welcome route
+app.get('/', (req, res) => {
+  res.status(200).json({
+    message: 'Welcome to the FunaGig API',
+    health: '/health',
+    endpoints: {
+      auth: '/api/auth',
+      gigs: '/api/gigs',
+      applications: '/api/applications',
+      messages: '/api/messages'
+    }
+  });
+});
+
 // Health check
 app.get('/health', (req, res) => {
   res.status(200).json({ status: 'ok' });
 });
 
 // Mount Routes
-app.use('/auth', authRoutes);
-app.use('/gigs', gigRoutes);
-app.use('/applications', applicationRoutes);
-app.use('/messages', messageRoutes);
-// app.use('/profiles', profileRoutes);
+app.use('/api/auth', authRoutes);
+app.use('/api/gigs', gigRoutes);
+app.use('/api/applications', applicationRoutes);
+app.use('/api/messages', messageRoutes);
+// app.use('/api/profiles', profileRoutes);
 // app.use('/analytics', analyticsRoutes);
 
 // Error handling middleware
