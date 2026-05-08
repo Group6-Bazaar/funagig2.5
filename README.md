@@ -128,3 +128,9 @@ FunaGig is designed to be deployed independently for maximum scalability:
 1. **Frontend (React):** Deploy `client/` to **Vercel**, **Netlify**, or **AWS S3+CloudFront**.
 2. **Backend (Express):** Deploy `server/` to **Render**, **Railway**, or **AWS EC2/ECS**.
 3. **Database:** Deploy PostgreSQL to **Neon**, **Railway**, or **AWS RDS**.
+
+---
+
+## ☁️ AWS Deployment Guide
+
+For a detailed walkthrough on deploying FunaGig to AWS using **Elastic Beanstalk, S3, and RDS**, please refer to the [AWS Deployment Guide](AWS_DEPLOYMENT.md).
