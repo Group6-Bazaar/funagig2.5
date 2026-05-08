@@ -18,6 +18,20 @@ app.use(cors({
 app.use(express.json());
 app.use(morgan('dev'));
 
+// Root route
+app.get('/', (req, res) => {
+  res.status(200).json({
+    message: 'Welcome to FunaGig API',
+    endpoints: {
+      health: '/health',
+      auth: '/auth',
+      gigs: '/gigs',
+      applications: '/applications',
+      messages: '/messages'
+    }
+  });
+});
+
 // Health check
 app.get('/health', (req, res) => {
   res.status(200).json({ status: 'ok' });
