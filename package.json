@@ -9,7 +9,7 @@
   "dev": "concurrently \"npm run dev --prefix server\" \"npm run dev --prefix client\"",
   "build": "npm run build --prefix client --if-present",
   "test": "npm test --prefix client --if-present && npm test --prefix server --if-present"
-}
+},
   "devDependencies": {
     "concurrently": "^8.2.2"
   }
