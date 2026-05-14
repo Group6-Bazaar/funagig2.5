@@ -6,13 +6,20 @@ dotenv.config();
 const { Pool } = pkg;
 
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
+  // Use individual variables for better compatibility with AWS Elastic Beanstalk
+  host: process.env.DB_HOST,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  database: process.env.DB_NAME,
+  port: process.env.DB_PORT || 5432,
+  
   max: 20,
   idleTimeoutMillis: 30000,
-  // Uncomment below if using a managed DB like Neon/Render requiring SSL
-  // ssl: {
-  //   rejectUnauthorized: false
-  // }
+
+  // CRITICAL: AWS RDS requires SSL to be enabled for external connections
+  ssl: {
+    rejectUnauthorized: false
+  }
 });
 
 pool.on('error', (err, client) => {
